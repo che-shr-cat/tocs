@@ -1,5 +1,7 @@
 # Theory of Code Space (ToCS)
 
+**Paper**: [Theory of Code Space: Do Code Agents Understand Software Architecture?](https://arxiv.org/abs/2603.00601)
+
 **Can AI code agents construct coherent architectural beliefs through active codebase exploration?**
 
 ToCS is a benchmark that evaluates whether foundation models can build, maintain, and update structured understanding of software architecture under partial observability. Inspired by [Theory of Space](https://arxiv.org/abs/2602.07055) (Zhang et al., 2026), which demonstrated spatial reasoning failures in multimodal models.
@@ -97,12 +99,11 @@ We actively welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for de
 ## Citation
 
 ```bibtex
-@article{tocs2026,
-  title={Theory of Code Space: Benchmarking Architectural Belief Construction
-         in Code Agents Under Partial Observability},
-  author={Anonymous},
-  year={2026},
-  note={Preprint}
+@article{sapunov2026tocs,
+  title={Theory of Code Space: Do Code Agents Understand Software Architecture?},
+  author={Sapunov, Grigory},
+  journal={arXiv preprint arXiv:2603.00601},
+  year={2026}
 }
 ```
 
