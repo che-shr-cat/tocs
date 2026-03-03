@@ -1,0 +1,6 @@
+Choose your next action. You have {remaining_budget} actions remaining out of {total_budget}.
+
+Files you have already opened: {opened_files}
+
+Respond with exactly ONE action in the format: ACTION(argument)
+Examples: LIST() | OPEN(runner.py) | SEARCH(config) | INSPECT(mod_a.py, process) | DONE()

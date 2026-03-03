@@ -1,0 +1,172 @@
+Based on everything you have observed so far, externalize your current architectural belief about this codebase as a JSON object matching the schema below.  Output ONLY the JSON object — no commentary before or after.
+
+### Schema
+
+```json
+{
+  "step": <int — current action step>,
+  "components": {
+    "<filepath>": {
+      "filepath": "<filepath>",
+      "status": "observed" | "inferred" | "unknown",
+      "purpose": "<why this file exists>",
+      "exports": [
+        {
+          "name": "<function or class name>",
+          "signature": {
+            "params": [
+              {"name": "<param>", "type_hint": "<type>", "has_default": false}
+            ],
+            "return_type": "<type>"
+          },
+          "callers": ["<filepath of caller>"],
+          "confidence": 0.0-1.0
+        }
+      ],
+      "edges": [
+        {
+          "target": "<target filepath>",
+          "type": "IMPORTS" | "CALLS_API" | "DATA_FLOWS_TO" | "REGISTRY_WIRES",
+          "confidence": 0.0-1.0
+        }
+      ],
+      "confidence": 0.0-1.0
+    }
+  },
+  "invariants": [
+    {
+      "type": "BOUNDARY" | "DATAFLOW" | "INTERFACE" | "INVARIANT" | "PURPOSE",
+      "description": "<what the constraint says>",
+      "structured": {
+        "type": "FORBIDDEN_EDGE" | "INTERFACE_ONLY" | "VALIDATION_CHAIN" | "NAMING_CONVENTION" | "INVARIANT" | "PURPOSE",
+        "src": "<source file or null>",
+        "dst": "<target file or null>",
+        "via": "<intermediary or null>",
+        "pattern": "<short fixed tag or null>"
+      },
+      "evidence": ["<filepath or observation that supports this>"],
+      "confidence": 0.0-1.0
+    }
+  ],
+  "unexplored": ["<filepath or directory you haven't examined>"],
+  "uncertainty_summary": "<brief description of what you're unsure about>"
+}
+```
+
+### Edge types
+- **IMPORTS**: a Python `import` or `from X import Y` statement exists.
+- **CALLS_API**: the file calls a public function exported by the target.
+- **DATA_FLOWS_TO**: the output of this component is consumed by the target (e.g., return value passed as argument in an orchestrator).
+- **REGISTRY_WIRES**: connected via a config file or registry, not a direct import.
+
+**IMPORTANT**: Edge targets must be specific **file paths** (e.g., `stages/mod_a.py`), not directory paths (e.g., `stages/`). If a module connects to multiple files in a directory, list each file as a separate edge.
+
+### Invariant structured types — field semantics
+
+Each invariant has a `structured` object. Use the fields as follows for each type:
+
+- **FORBIDDEN_EDGE**: A module must not depend on another.
+  - `src`: the constrained module (specific file path), `dst`: the forbidden target (file path or null if "must not import any sibling"), `pattern`: short tag like `"no_import"`.
+- **INTERFACE_ONLY**: Access must go through an interface/ABC.
+  - `src`: null, `dst`: null, `via`: the interface provider file (e.g., `base.py`), `pattern`: null.
+- **VALIDATION_CHAIN**: Data must flow through a required sequence. **Decompose chains into pairwise links** — one invariant per adjacent pair (e.g., mod_a→mod_b, mod_b→mod_c), not one holistic invariant for the whole chain.
+  - `src`: first file in the pair, `dst`: second file in the pair, `via`: null, `pattern`: null.
+- **NAMING_CONVENTION**: A structural naming rule (e.g., all stages match `mod_*.py`).
+  - `src`: the directory or module, `dst`: null, `via`: null, `pattern`: the naming rule.
+- **INVARIANT**: A runtime or behavioral constraint (e.g., "batch_size must be respected by all stages").
+  - `src`: null, `dst`: null, `via`: null, `pattern`: short description of the constraint.
+- **PURPOSE**: A design rationale (e.g., "each stage is a separate module for independent testing").
+  - `src`: null, `dst`: null, `via`: null, `pattern`: short description of the rationale.
+
+**IMPORTANT**: Use specific **file paths** in `src`, `dst`, `via` (e.g., `stages/mod_a.py`), not directory paths. Keep `pattern` values short (a few words), not full sentences or regexes.
+
+### Example (partial)
+
+```json
+{
+  "step": 6,
+  "components": {
+    "models.py": {
+      "filepath": "models.py",
+      "status": "observed",
+      "purpose": "Shared data types used across pipeline stages",
+      "exports": [
+        {
+          "name": "Record",
+          "signature": {"params": [], "return_type": ""},
+          "callers": ["mod_a.py", "mod_b.py"],
+          "confidence": 0.9
+        }
+      ],
+      "edges": [],
+      "confidence": 0.95
+    },
+    "registry.py": {
+      "filepath": "registry.py",
+      "status": "observed",
+      "purpose": "Loads pipeline stages from config at runtime",
+      "exports": [
+        {
+          "name": "get_pipeline",
+          "signature": {
+            "params": [],
+            "return_type": "list[StageBase]"
+          },
+          "callers": ["runner.py"],
+          "confidence": 0.8
+        }
+      ],
+      "edges": [
+        {"target": "base.py", "type": "IMPORTS", "confidence": 0.9},
+        {"target": "mod_a.py", "type": "REGISTRY_WIRES", "confidence": 0.7}
+      ],
+      "confidence": 0.8
+    }
+  },
+  "invariants": [
+    {
+      "type": "BOUNDARY",
+      "description": "Stages must not import each other directly",
+      "structured": {
+        "type": "FORBIDDEN_EDGE",
+        "src": "stages/mod_a.py",
+        "dst": null,
+        "via": null,
+        "pattern": "no_import"
+      },
+      "evidence": ["test_boundaries.py"],
+      "confidence": 0.7
+    },
+    {
+      "type": "INTERFACE",
+      "description": "All stages access shared types through the base class interface",
+      "structured": {
+        "type": "INTERFACE_ONLY",
+        "src": null,
+        "dst": null,
+        "via": "base.py",
+        "pattern": null
+      },
+      "evidence": ["base.py", "registry.py"],
+      "confidence": 0.8
+    },
+    {
+      "type": "DATAFLOW",
+      "description": "Data flows from mod_a to mod_b in the pipeline",
+      "structured": {
+        "type": "VALIDATION_CHAIN",
+        "src": "stages/mod_a.py",
+        "dst": "stages/mod_b.py",
+        "via": null,
+        "pattern": null
+      },
+      "evidence": ["runner.py"],
+      "confidence": 0.6
+    }
+  ],
+  "unexplored": ["legacy.py", "helpers.py"],
+  "uncertainty_summary": "Have not yet opened helpers.py or legacy.py. Unsure whether there are additional stages beyond mod_a."
+}
+```
+
+Now output your belief as JSON:

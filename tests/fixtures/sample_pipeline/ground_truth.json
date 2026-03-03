@@ -1,0 +1,303 @@
+{
+    "codebase_id": "fixture-pipeline-001",
+    "pattern": "pipeline",
+    "complexity": "small",
+    "language": "python",
+    "modules": {
+        "models.py": {
+            "filepath": "models.py",
+            "purpose": "Shared data types (Record, PipelineConfig) used by all stages",
+            "exports": ["Record", "PipelineConfig"],
+            "edges": []
+        },
+        "base.py": {
+            "filepath": "base.py",
+            "purpose": "Abstract base class (StageBase) that all pipeline stages implement",
+            "exports": ["StageBase"],
+            "edges": [
+                {"target": "models.py", "type": "IMPORTS"}
+            ]
+        },
+        "registry.py": {
+            "filepath": "registry.py",
+            "purpose": "Reads pipeline_config.json and dynamically loads stage classes",
+            "exports": ["get_pipeline", "get_batch_size"],
+            "edges": [
+                {"target": "base.py", "type": "IMPORTS"},
+                {"target": "mod_a.py", "type": "REGISTRY_WIRES"},
+                {"target": "mod_b.py", "type": "REGISTRY_WIRES"},
+                {"target": "mod_c.py", "type": "REGISTRY_WIRES"},
+                {"target": "mod_d.py", "type": "REGISTRY_WIRES"}
+            ]
+        },
+        "mod_a.py": {
+            "filepath": "mod_a.py",
+            "purpose": "Pipeline stage: ingestion and parsing of raw input records",
+            "exports": ["IngestStage"],
+            "edges": [
+                {"target": "base.py", "type": "IMPORTS"},
+                {"target": "models.py", "type": "IMPORTS"},
+                {"target": "mod_b.py", "type": "DATA_FLOWS_TO"}
+            ]
+        },
+        "mod_b.py": {
+            "filepath": "mod_b.py",
+            "purpose": "Pipeline stage: validation, quality checks, sets is_validated flag",
+            "exports": ["ValidateStage"],
+            "edges": [
+                {"target": "base.py", "type": "IMPORTS"},
+                {"target": "models.py", "type": "IMPORTS"},
+                {"target": "helpers.py", "type": "IMPORTS"},
+                {"target": "helpers.py", "type": "CALLS_API"},
+                {"target": "mod_c.py", "type": "DATA_FLOWS_TO"}
+            ]
+        },
+        "mod_c.py": {
+            "filepath": "mod_c.py",
+            "purpose": "Pipeline stage: enrichment with external lookups (requires validated input)",
+            "exports": ["EnrichStage"],
+            "edges": [
+                {"target": "base.py", "type": "IMPORTS"},
+                {"target": "models.py", "type": "IMPORTS"},
+                {"target": "mod_d.py", "type": "DATA_FLOWS_TO"}
+            ]
+        },
+        "mod_d.py": {
+            "filepath": "mod_d.py",
+            "purpose": "Pipeline stage: final output formatting and serialization",
+            "exports": ["ExportStage"],
+            "edges": [
+                {"target": "base.py", "type": "IMPORTS"},
+                {"target": "models.py", "type": "IMPORTS"}
+            ]
+        },
+        "runner.py": {
+            "filepath": "runner.py",
+            "purpose": "Pipeline orchestrator: loads stages from registry and runs them in sequence",
+            "exports": ["run_pipeline"],
+            "edges": [
+                {"target": "models.py", "type": "IMPORTS"},
+                {"target": "registry.py", "type": "IMPORTS"},
+                {"target": "registry.py", "type": "CALLS_API"}
+            ]
+        },
+        "helpers.py": {
+            "filepath": "helpers.py",
+            "purpose": "General-purpose utility functions (not part of pipeline stage sequence)",
+            "exports": ["compute_checksum", "flatten_dict"],
+            "edges": []
+        },
+        "legacy.py": {
+            "filepath": "legacy.py",
+            "purpose": "Dead code: old record format converter from v0 pipeline, no longer used",
+            "exports": ["LegacyRecord", "convert_legacy"],
+            "edges": []
+        }
+    },
+    "invariants": [
+        {
+            "id": "inv-001",
+            "type": "DATAFLOW",
+            "description": "Data must pass through mod_b (validation, sets is_validated=True) before reaching mod_c (enrichment, requires is_validated=True)",
+            "structured": {
+                "type": "VALIDATION_CHAIN",
+                "src": "mod_b.py",
+                "dst": "mod_c.py",
+                "via": "is_validated"
+            },
+            "involved_modules": ["mod_b.py", "mod_c.py"],
+            "rationale": "mod_c checks is_validated and raises ValueError in strict mode if records were not validated by mod_b first",
+            "evidence_types": ["test", "documentation"],
+            "evidence_locations": ["test_boundaries.py", "mod_c.py"]
+        },
+        {
+            "id": "inv-002",
+            "type": "BOUNDARY",
+            "description": "Pipeline stages (mod_a, mod_b, mod_c, mod_d) must not import each other directly — they communicate only via the runner/registry mechanism",
+            "structured": {
+                "type": "FORBIDDEN_EDGE",
+                "pattern": "no stage-to-stage imports"
+            },
+            "involved_modules": ["mod_a.py", "mod_b.py", "mod_c.py", "mod_d.py"],
+            "rationale": "Direct imports between stages would bypass the pipeline contract and create hidden ordering dependencies",
+            "evidence_types": ["test", "structural"],
+            "evidence_locations": ["test_boundaries.py"]
+        },
+        {
+            "id": "inv-003",
+            "type": "INTERFACE",
+            "description": "All pipeline stages implement StageBase ABC with process(records, config) -> list[Record]",
+            "structured": {
+                "type": "INTERFACE_ONLY",
+                "via": "base.py"
+            },
+            "involved_modules": ["base.py", "mod_a.py", "mod_b.py", "mod_c.py", "mod_d.py"],
+            "rationale": "A uniform interface lets the runner chain stages generically without knowing concrete types",
+            "evidence_types": ["structural"],
+            "evidence_locations": ["base.py", "mod_a.py", "mod_b.py", "mod_c.py", "mod_d.py"]
+        },
+        {
+            "id": "inv-004",
+            "type": "BOUNDARY",
+            "description": "No stage or helper may import runner.py (no reverse dependency on orchestrator)",
+            "structured": {
+                "type": "FORBIDDEN_EDGE",
+                "dst": "runner.py"
+            },
+            "involved_modules": ["runner.py", "mod_a.py", "mod_b.py", "mod_c.py", "mod_d.py", "helpers.py"],
+            "rationale": "The orchestrator depends on stages, not the reverse; circular deps would break independent testability",
+            "evidence_types": ["structural"],
+            "evidence_locations": ["runner.py"]
+        },
+        {
+            "id": "inv-005",
+            "type": "INVARIANT",
+            "description": "Pipeline stage ordering is defined in pipeline_config.json, not in code — the registry reads config at runtime via importlib",
+            "structured": {
+                "type": "VALIDATION_CHAIN",
+                "src": "registry.py",
+                "via": "pipeline_config.json"
+            },
+            "involved_modules": ["registry.py", "mod_a.py", "mod_b.py", "mod_c.py", "mod_d.py"],
+            "rationale": "Externalizing stage wiring to config makes the pipeline reconfigurable without code changes",
+            "evidence_types": ["structural", "documentation"],
+            "evidence_locations": ["registry.py", "pipeline_config.json"]
+        },
+        {
+            "id": "inv-006",
+            "type": "PURPOSE",
+            "description": "legacy.py is dead code — no active module imports or references it",
+            "structured": {
+                "type": "FORBIDDEN_EDGE",
+                "dst": "legacy.py",
+                "pattern": "no incoming edges"
+            },
+            "involved_modules": ["legacy.py"],
+            "rationale": "Kept for backward compatibility with historical data but intentionally excluded from the active pipeline",
+            "evidence_types": ["documentation", "structural"],
+            "evidence_locations": ["legacy.py"]
+        }
+    ],
+    "design_rationales": [
+        {
+            "id": "dr-001",
+            "question": "Why does mod_c reject records without is_validated=True instead of just processing them?",
+            "answer": "Data integrity guarantee: enrichment lookups assume validated, well-formed input. Processing unvalidated records could produce corrupt enrichment joins.",
+            "affected_modules": ["mod_b.py", "mod_c.py"],
+            "downstream_effects": [
+                "Skipping validation would cause mod_c to raise ValueError in strict mode",
+                "In non-strict mode, unvalidated records are silently dropped, causing data loss"
+            ]
+        },
+        {
+            "id": "dr-002",
+            "question": "Why are stages wired via pipeline_config.json and importlib instead of direct imports in runner.py?",
+            "answer": "Externalizing stage wiring to config enables reordering, adding, or removing stages without modifying Python code. It also decouples the runner from concrete stage classes.",
+            "affected_modules": ["runner.py", "registry.py", "mod_a.py", "mod_b.py", "mod_c.py", "mod_d.py"],
+            "downstream_effects": [
+                "Direct imports would make the runner tightly coupled to specific stages",
+                "Reordering stages would require code changes instead of config changes",
+                "Static analysis tools cannot follow dynamic importlib-based wiring"
+            ]
+        },
+        {
+            "id": "dr-003",
+            "question": "Why is legacy.py kept in the repository if nothing uses it?",
+            "answer": "Backward compatibility: historical data in the old LegacyRecord format may need reprocessing. Removing it would lose the conversion logic.",
+            "affected_modules": ["legacy.py"],
+            "downstream_effects": [
+                "Removing legacy.py breaks ability to reprocess historical v0 data",
+                "No active code would break since nothing imports legacy.py"
+            ]
+        },
+        {
+            "id": "dr-004",
+            "question": "Why does mod_b import helpers.py instead of implementing checksum inline?",
+            "answer": "compute_checksum is a general-purpose utility that could be reused. Isolating it in helpers.py keeps stage logic focused on validation rules.",
+            "affected_modules": ["mod_b.py", "helpers.py"],
+            "downstream_effects": [
+                "Changing the checksum algorithm only requires editing helpers.py",
+                "Other stages or tools could reuse compute_checksum without depending on mod_b"
+            ]
+        }
+    ],
+    "dependency_edges": [
+        {"source": "base.py", "target": "models.py", "type": "IMPORTS"},
+        {"source": "registry.py", "target": "base.py", "type": "IMPORTS"},
+        {"source": "registry.py", "target": "mod_a.py", "type": "REGISTRY_WIRES"},
+        {"source": "registry.py", "target": "mod_b.py", "type": "REGISTRY_WIRES"},
+        {"source": "registry.py", "target": "mod_c.py", "type": "REGISTRY_WIRES"},
+        {"source": "registry.py", "target": "mod_d.py", "type": "REGISTRY_WIRES"},
+        {"source": "mod_a.py", "target": "base.py", "type": "IMPORTS"},
+        {"source": "mod_a.py", "target": "models.py", "type": "IMPORTS"},
+        {"source": "mod_a.py", "target": "mod_b.py", "type": "DATA_FLOWS_TO"},
+        {"source": "mod_b.py", "target": "base.py", "type": "IMPORTS"},
+        {"source": "mod_b.py", "target": "models.py", "type": "IMPORTS"},
+        {"source": "mod_b.py", "target": "helpers.py", "type": "IMPORTS"},
+        {"source": "mod_b.py", "target": "helpers.py", "type": "CALLS_API"},
+        {"source": "mod_b.py", "target": "mod_c.py", "type": "DATA_FLOWS_TO"},
+        {"source": "mod_c.py", "target": "base.py", "type": "IMPORTS"},
+        {"source": "mod_c.py", "target": "models.py", "type": "IMPORTS"},
+        {"source": "mod_c.py", "target": "mod_d.py", "type": "DATA_FLOWS_TO"},
+        {"source": "mod_d.py", "target": "base.py", "type": "IMPORTS"},
+        {"source": "mod_d.py", "target": "models.py", "type": "IMPORTS"},
+        {"source": "runner.py", "target": "models.py", "type": "IMPORTS"},
+        {"source": "runner.py", "target": "registry.py", "type": "IMPORTS"},
+        {"source": "runner.py", "target": "registry.py", "type": "CALLS_API"}
+    ],
+    "contracts": [
+        {
+            "name": "run_pipeline",
+            "module": "runner.py",
+            "signature": {
+                "params": [
+                    {"name": "records", "type_hint": "list[Record]", "has_default": false},
+                    {"name": "config", "type_hint": "PipelineConfig | None", "has_default": true}
+                ],
+                "return_type": "list[Record]"
+            },
+            "callers": []
+        },
+        {
+            "name": "get_pipeline",
+            "module": "registry.py",
+            "signature": {
+                "params": [],
+                "return_type": "list[StageBase]"
+            },
+            "callers": ["runner.py"]
+        },
+        {
+            "name": "get_batch_size",
+            "module": "registry.py",
+            "signature": {
+                "params": [],
+                "return_type": "int"
+            },
+            "callers": ["runner.py"]
+        },
+        {
+            "name": "compute_checksum",
+            "module": "helpers.py",
+            "signature": {
+                "params": [
+                    {"name": "data", "type_hint": "dict[str, Any]", "has_default": false}
+                ],
+                "return_type": "str"
+            },
+            "callers": ["mod_b.py"]
+        },
+        {
+            "name": "flatten_dict",
+            "module": "helpers.py",
+            "signature": {
+                "params": [
+                    {"name": "d", "type_hint": "dict[str, Any]", "has_default": false},
+                    {"name": "prefix", "type_hint": "str", "has_default": true}
+                ],
+                "return_type": "dict[str, Any]"
+            },
+            "callers": []
+        }
+    ]
+}

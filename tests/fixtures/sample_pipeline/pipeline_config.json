@@ -1,0 +1,12 @@
+{
+    "pipeline": {
+        "stages": [
+            {"module": "mod_a", "class": "IngestStage"},
+            {"module": "mod_b", "class": "ValidateStage"},
+            {"module": "mod_c", "class": "EnrichStage"},
+            {"module": "mod_d", "class": "ExportStage"}
+        ]
+    },
+    "batch_size": 100,
+    "strict_mode": true
+}
