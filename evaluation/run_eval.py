@@ -104,6 +104,7 @@ def run_single(
     maps: list[CognitiveMap] = []
     action_log: list[ActionResult] = []
     conversation: list[dict] = []
+    token_usage: dict | None = None
 
     if model == "oracle":
         maps = _oracle.run(gt)
@@ -125,6 +126,7 @@ def run_single(
             maps = result.maps
             action_log = result.action_log
             conversation = result.conversation
+            token_usage = result.token_usage
         except Exception as exc:
             # Save partial results before re-raising
             logger.error("Exploration crashed: %s. Saving partial results.", exc)
@@ -142,6 +144,7 @@ def run_single(
         adapter = get_adapter(model)
         try:
             maps, action_log = _run_passive_full(adapter, codebase, gt)
+            token_usage = dict(adapter._token_usage)
         except Exception as exc:
             logger.error("passive-full crashed: %s. Saving partial results.", exc)
             if hasattr(adapter, '_last_messages'):
@@ -158,6 +161,7 @@ def run_single(
             maps, action_log = _run_passive_oracle(
                 adapter, codebase, gt, budget, probe_interval, track
             )
+            token_usage = dict(adapter._token_usage)
         except Exception as exc:
             logger.error("passive-oracle crashed: %s. Saving partial results.", exc)
             if hasattr(adapter, '_last_messages'):
@@ -176,6 +180,7 @@ def run_single(
             maps, action_log = _run_passive_replay(
                 adapter, replay_log, probe_interval, track
             )
+            token_usage = dict(adapter._token_usage)
         except Exception as exc:
             logger.error("passive-replay crashed: %s. Saving partial results.", exc)
             if hasattr(adapter, '_last_messages'):
@@ -242,7 +247,7 @@ def run_single(
     )
 
     # Save
-    save_result(eval_result, Path(output), action_log, conversation)
+    save_result(eval_result, Path(output), action_log, conversation, token_usage)
 
     return eval_result
 
@@ -400,6 +405,10 @@ def _run_passive_full(
         {
             "role": "user",
             "content": (
+                "You have been given access to the ENTIRE codebase at once. "
+                "Do NOT take any exploration actions (no LIST, OPEN, SEARCH, "
+                "INSPECT, or DONE). Instead, analyze all the code below and "
+                "then provide your cognitive map.\n\n"
                 "Here is the complete codebase. All files are shown below.\n\n"
                 f"{all_content}\n\n"
                 f"{adapter._probe_prompt}"
@@ -595,7 +604,7 @@ def _run_passive_replay(
 # ── Filename helper ──────────────────────────────────────────────────
 
 
-def _expected_filename(model: str, codebase_id: str, mode: str) -> str:
+def _expected_filename(model: str, codebase_id: str, mode: str, track: str = "probe_as_scratchpad") -> str:
     """Compute the canonical result filename for a given run configuration.
 
     Must stay in sync with save_result().
@@ -606,7 +615,8 @@ def _expected_filename(model: str, codebase_id: str, mode: str) -> str:
     else:
         eval_mode = mode
         condition = ""
-    filename = f"{model}_{codebase_id}_{eval_mode}{condition}.json"
+    track_suffix = f"_{track}" if track != "probe_as_scratchpad" else ""
+    filename = f"{model}_{codebase_id}_{eval_mode}{condition}{track_suffix}.json"
     return filename.replace("/", "_").replace("\\", "_")
 
 
@@ -674,14 +684,16 @@ def save_result(
     output_dir: Path,
     action_log: list[ActionResult] | None = None,
     conversation: list[dict] | None = None,
+    token_usage: dict | None = None,
 ) -> Path:
-    """Save EvalResult as JSON. Optionally saves action log and conversation."""
+    """Save EvalResult as JSON. Optionally saves action log, conversation, and token usage."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     condition = f"-{result.passive_condition}" if result.passive_condition else ""
+    track_suffix = f"_{result.track}" if result.track != "probe_as_scratchpad" else ""
     filename = (
-        f"{result.model_name}_{result.codebase_id}_{result.mode}{condition}.json"
+        f"{result.model_name}_{result.codebase_id}_{result.mode}{condition}{track_suffix}.json"
     )
     filename = filename.replace("/", "_").replace("\\", "_")
 
@@ -709,6 +721,11 @@ def save_result(
     if conversation:
         conv_path = path.with_name(path.stem + "_conversation.json")
         conv_path.write_text(json.dumps(conversation, indent=2))
+
+    # Save token usage
+    if token_usage:
+        usage_path = path.with_name(path.stem + "_token_usage.json")
+        usage_path.write_text(json.dumps(token_usage, indent=2))
 
     return path
 
@@ -875,7 +892,7 @@ def batch_run(
                 run_label = f"{m} / {cb.name} / {md}"
                 typer.echo(f"\n--- {run_label} ---")
 
-                expected_name = _expected_filename(m, codebase_id, md)
+                expected_name = _expected_filename(m, codebase_id, md, track)
                 expected_path = output / expected_name
 
                 # Check for existing completed result

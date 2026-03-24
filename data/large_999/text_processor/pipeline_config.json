@@ -1,0 +1,44 @@
+{
+  "pipeline": {
+    "name": "text_processing",
+    "version": "0.1.0",
+    "stages": [
+      {
+        "module": "mod_a",
+        "enabled": true
+      },
+      {
+        "module": "mod_b",
+        "enabled": true
+      },
+      {
+        "module": "mod_c",
+        "enabled": true
+      },
+      {
+        "module": "mod_d",
+        "enabled": true
+      },
+      {
+        "module": "mod_e",
+        "enabled": true
+      },
+      {
+        "module": "mod_f",
+        "enabled": true
+      },
+      {
+        "module": "mod_g",
+        "enabled": true
+      },
+      {
+        "module": "mod_h",
+        "enabled": true
+      }
+    ]
+  },
+  "settings": {
+    "batch_size": 100,
+    "log_level": "INFO"
+  }
+}

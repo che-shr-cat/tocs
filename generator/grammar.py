@@ -382,7 +382,9 @@ class PipelineTemplate(PatternTemplate):
         domain = rng.choice(PIPELINE_DOMAINS)
         pkg = domain.package_name
 
-        # Medium tier uses a different generation path
+        # Medium / Large tiers use different generation paths
+        if complexity == ComplexityTier.LARGE:
+            return self._generate_large(domain, pkg, rng)
         if complexity == ComplexityTier.MEDIUM:
             return self._generate_medium(domain, pkg, rng)
 
@@ -582,6 +584,9 @@ class PipelineTemplate(PatternTemplate):
         if complexity == ComplexityTier.SMALL:
             # Use first 4 stages for backward compat with existing tests
             return list(domain.stages[:4])
+        if complexity == ComplexityTier.LARGE:
+            # Large: all stages from the domain
+            return list(domain.stages)
         if complexity == ComplexityTier.MEDIUM:
             all_stages = list(domain.stages)
             num = rng.randint(6, min(8, len(all_stages)))
@@ -1349,6 +1354,1181 @@ class PipelineTemplate(PatternTemplate):
                 "Per-stage logging would diverge in format and verbosity",
                 "Retry logic would be duplicated and potentially inconsistent",
                 "Adding a new cross-cutting concern would touch every stage",
+            ],
+        ))
+
+        return rationales
+
+    # ------------------------------------------------------------------ #
+    # LARGE-tier generation
+    # ------------------------------------------------------------------ #
+
+    def _generate_large(
+        self,
+        domain: PipelineDomain,
+        pkg: str,
+        rng: random.Random,
+    ) -> PatternBlueprint:
+        """Generate a 50-60 file pipeline blueprint with extended architecture.
+
+        Extends medium with: validators/, hooks/, serializers/ subpackages,
+        types.py, pipeline_factory.py, and additional distractors.
+        """
+        stages = self._select_stages(domain, ComplexityTier.LARGE, rng)
+        modules, edges = self._build_large_modules(domain, pkg, stages, rng)
+        invariants = self._build_large_invariants(
+            pkg, modules, edges, stages, rng,
+        )
+        rationales = self._build_large_rationales(pkg, modules, stages)
+
+        return PatternBlueprint(
+            pattern=ArchPattern.PIPELINE,
+            complexity=ComplexityTier.LARGE,
+            package_name=pkg,
+            domain=domain.name,
+            domain_description=domain.description,
+            modules=modules,
+            invariants=invariants,
+            design_rationales=rationales,
+            dependency_edges=edges,
+        )
+
+    def _build_large_modules(
+        self,
+        domain: PipelineDomain,
+        pkg: str,
+        stages: list[StageInfo],
+        rng: random.Random,
+    ) -> tuple[dict[str, ModuleSpec], list[tuple[str, str, str]]]:
+        """Build modules and edges for a large-tier pipeline blueprint.
+
+        Extends medium layout with:
+            {pkg}/types.py               — protocols and type aliases
+            {pkg}/validators/mod_*.py    — input validators (3-4)
+            {pkg}/hooks/mod_*.py         — lifecycle hooks (3)
+            {pkg}/serializers/mod_*.py   — output serializers (2-3)
+            {pkg}/legacy/deprecated_tests.py  — extra distractor
+            {pkg}/legacy/migration_v1.py      — extra distractor
+            {pkg}/pipeline_factory.py    — factory entry point
+        """
+        modules: dict[str, ModuleSpec] = {}
+        edges: list[tuple[str, str, str]] = []
+        name_idx = 0
+
+        # Collect all data types
+        all_types = [domain.raw_type]
+        for s in stages:
+            if s.output_type not in all_types:
+                all_types.append(s.output_type)
+
+        # ── Package __init__.py ──────────────────────────────────────
+        init_path = f"{pkg}/__init__.py"
+        modules[init_path] = ModuleSpec(
+            filepath=init_path,
+            role="package_init",
+            purpose=f"Package root for {domain.description.split(',')[0].lower()}",
+            exports=[],
+            imports_from=[],
+        )
+
+        # ── Infrastructure ───────────────────────────────────────────
+        models_path = f"{pkg}/models.py"
+        modules[models_path] = ModuleSpec(
+            filepath=models_path,
+            role="data_model",
+            purpose="Defines all data types that flow through the pipeline stages",
+            exports=all_types,
+            imports_from=[],
+            generation_hints={
+                "types": ",".join(all_types),
+                "base_class": "BaseModel",
+            },
+        )
+
+        types_path = f"{pkg}/types.py"
+        modules[types_path] = ModuleSpec(
+            filepath=types_path,
+            role="types",
+            purpose="Protocol definitions and type aliases shared across the pipeline",
+            exports=["StageProtocol", "ValidatorProtocol", "HookProtocol"],
+            imports_from=[],
+            generation_hints={},
+        )
+
+        base_path = f"{pkg}/base.py"
+        modules[base_path] = ModuleSpec(
+            filepath=base_path,
+            role="base",
+            purpose="Abstract base class (StageBase) that all pipeline stages implement",
+            exports=["StageBase"],
+            imports_from=[models_path, types_path],
+            generation_hints={"pattern": "abc"},
+        )
+        edges.extend([
+            (base_path, models_path, "IMPORTS"),
+            (base_path, types_path, "IMPORTS"),
+        ])
+
+        config_path = f"{pkg}/config.py"
+        modules[config_path] = ModuleSpec(
+            filepath=config_path,
+            role="config",
+            purpose="Pipeline configuration: batch size, paths, feature flags, stage ordering",
+            exports=["PipelineConfig"],
+            imports_from=[],
+            generation_hints={
+                "config_fields": "batch_size,input_path,output_path,log_level,stage_order",
+            },
+        )
+
+        exceptions_path = f"{pkg}/exceptions.py"
+        modules[exceptions_path] = ModuleSpec(
+            filepath=exceptions_path,
+            role="exceptions",
+            purpose="Custom exception hierarchy for pipeline errors",
+            exports=["PipelineError", "StageError", "ValidationError"],
+            imports_from=[],
+            generation_hints={},
+        )
+
+        registry_path = f"{pkg}/registry.py"
+        modules[registry_path] = ModuleSpec(
+            filepath=registry_path,
+            role="registry",
+            purpose="Stage registry: maps stage names to classes, "
+                    "loaded at runtime via importlib",
+            exports=["StageRegistry", "get_registry"],
+            imports_from=[base_path, config_path],
+            generation_hints={"pattern": "importlib"},
+        )
+        edges.extend([
+            (registry_path, base_path, "IMPORTS"),
+            (registry_path, config_path, "IMPORTS"),
+        ])
+
+        # ── Stages subpackage ────────────────────────────────────────
+        stages_init = f"{pkg}/stages/__init__.py"
+        modules[stages_init] = ModuleSpec(
+            filepath=stages_init,
+            role="package_init",
+            purpose="Stages subpackage init — re-exports stage classes",
+            exports=[],
+            imports_from=[],
+        )
+
+        stage_paths: list[str] = []
+        for i, stage in enumerate(stages):
+            neutral = _NEUTRAL_NAMES[name_idx]
+            name_idx += 1
+            stage_path = f"{pkg}/stages/{neutral}.py"
+            stage_paths.append(stage_path)
+            modules[stage_path] = ModuleSpec(
+                filepath=stage_path,
+                role="stage",
+                purpose=stage.purpose,
+                exports=[stage.function_name],
+                imports_from=[models_path, base_path, exceptions_path],
+                order=i + 1,
+                generation_hints={
+                    "function_name": stage.function_name,
+                    "input_type": stage.input_type,
+                    "output_type": stage.output_type,
+                    "description": stage.purpose,
+                    "stage_name": stage.module_name,
+                },
+            )
+            edges.extend([
+                (stage_path, models_path, "IMPORTS"),
+                (stage_path, base_path, "IMPORTS"),
+                (stage_path, exceptions_path, "IMPORTS"),
+            ])
+
+        # DATA_FLOWS_TO between consecutive stages
+        for i in range(len(stage_paths) - 1):
+            edges.append((stage_paths[i], stage_paths[i + 1], "DATA_FLOWS_TO"))
+
+        # REGISTRY_WIRES: registry dynamically loads each stage
+        for sp in stage_paths:
+            edges.append((registry_path, sp, "REGISTRY_WIRES"))
+
+        # ── Adapters subpackage ──────────────────────────────────────
+        num_adapters = rng.randint(3, min(5, len(stages)))
+        adapted_indices = sorted(rng.sample(range(len(stages)), num_adapters))
+
+        adapters_init = f"{pkg}/adapters/__init__.py"
+        modules[adapters_init] = ModuleSpec(
+            filepath=adapters_init,
+            role="package_init",
+            purpose="Adapters subpackage init",
+            exports=[],
+            imports_from=[],
+        )
+
+        adapter_paths: list[str] = []
+        adapter_wraps: dict[str, str] = {}
+        for idx in adapted_indices:
+            neutral = _NEUTRAL_NAMES[name_idx]
+            name_idx += 1
+            adapter_path = f"{pkg}/adapters/{neutral}.py"
+            adapter_paths.append(adapter_path)
+            wrapped_stage = stages[idx]
+            wrapped_path = stage_paths[idx]
+            adapter_wraps[adapter_path] = wrapped_path
+            modules[adapter_path] = ModuleSpec(
+                filepath=adapter_path,
+                role="adapter",
+                purpose=(
+                    f"Adapter providing external interface for "
+                    f"{wrapped_stage.module_name} stage"
+                ),
+                exports=[f"adapt_{wrapped_stage.function_name}"],
+                imports_from=[base_path, wrapped_path, models_path],
+                generation_hints={
+                    "wrapped_stage": wrapped_path,
+                    "wrapped_function": wrapped_stage.function_name,
+                    "stage_name": wrapped_stage.module_name,
+                },
+            )
+            edges.extend([
+                (adapter_path, base_path, "IMPORTS"),
+                (adapter_path, wrapped_path, "IMPORTS"),
+                (adapter_path, models_path, "IMPORTS"),
+                (adapter_path, wrapped_path, "CALLS_API"),
+            ])
+
+        # ── Middleware subpackage ────────────────────────────────────
+        middleware_kinds = ["logging", "retry", "metrics"]  # all three for large
+
+        mw_init = f"{pkg}/middleware/__init__.py"
+        modules[mw_init] = ModuleSpec(
+            filepath=mw_init,
+            role="package_init",
+            purpose="Middleware subpackage init",
+            exports=[],
+            imports_from=[],
+        )
+
+        mw_paths: list[str] = []
+        for kind in middleware_kinds:
+            neutral = _NEUTRAL_NAMES[name_idx]
+            name_idx += 1
+            mw_path = f"{pkg}/middleware/{neutral}.py"
+            mw_paths.append(mw_path)
+            modules[mw_path] = ModuleSpec(
+                filepath=mw_path,
+                role="middleware",
+                purpose=f"Middleware: {kind} wrapper for pipeline stages",
+                exports=[f"{kind}_middleware"],
+                imports_from=[base_path],
+                generation_hints={"middleware_type": kind},
+            )
+            edges.append((mw_path, base_path, "IMPORTS"))
+
+        # ── Validators subpackage (NEW for large) ────────────────────
+        validator_kinds = ["schema", "integrity", "range", "business_rule"]
+        num_validators = rng.randint(3, 4)
+        chosen_validators = validator_kinds[:num_validators]
+
+        val_init = f"{pkg}/validators/__init__.py"
+        modules[val_init] = ModuleSpec(
+            filepath=val_init,
+            role="package_init",
+            purpose="Validators subpackage init — input validation modules",
+            exports=[],
+            imports_from=[],
+        )
+
+        validator_paths: list[str] = []
+        for vkind in chosen_validators:
+            neutral = _NEUTRAL_NAMES[name_idx]
+            name_idx += 1
+            val_path = f"{pkg}/validators/{neutral}.py"
+            validator_paths.append(val_path)
+            modules[val_path] = ModuleSpec(
+                filepath=val_path,
+                role="validator",
+                purpose=f"Validator: {vkind} validation for pipeline input data",
+                exports=[f"validate_{vkind}"],
+                imports_from=[models_path, exceptions_path, types_path],
+                generation_hints={"validator_type": vkind},
+            )
+            edges.extend([
+                (val_path, models_path, "IMPORTS"),
+                (val_path, exceptions_path, "IMPORTS"),
+                (val_path, types_path, "IMPORTS"),
+            ])
+
+        # Stages call validators (cross-cutting CALLS_API)
+        # First 2-3 stages call the first validator, next stages call the second, etc.
+        stages_per_validator = max(1, len(stages) // len(validator_paths))
+        for vi, vp in enumerate(validator_paths):
+            start = vi * stages_per_validator
+            end = min(start + stages_per_validator, len(stages))
+            if vi == len(validator_paths) - 1:
+                end = len(stages)  # last validator covers remaining
+            for si in range(start, end):
+                if si < len(stage_paths):
+                    edges.append((stage_paths[si], vp, "CALLS_API"))
+
+        # ── Hooks subpackage (NEW for large) ─────────────────────────
+        hook_kinds = ["pre_pipeline", "post_pipeline", "on_error"]
+
+        hooks_init = f"{pkg}/hooks/__init__.py"
+        modules[hooks_init] = ModuleSpec(
+            filepath=hooks_init,
+            role="package_init",
+            purpose="Hooks subpackage init — lifecycle hook modules",
+            exports=[],
+            imports_from=[],
+        )
+
+        hook_paths: list[str] = []
+        for hkind in hook_kinds:
+            neutral = _NEUTRAL_NAMES[name_idx]
+            name_idx += 1
+            hook_path = f"{pkg}/hooks/{neutral}.py"
+            hook_paths.append(hook_path)
+            modules[hook_path] = ModuleSpec(
+                filepath=hook_path,
+                role="hook",
+                purpose=f"Lifecycle hook: {hkind} — executed by the pipeline runner",
+                exports=[f"{hkind}_hook"],
+                imports_from=[config_path, models_path],
+                generation_hints={"hook_type": hkind},
+            )
+            edges.extend([
+                (hook_path, config_path, "IMPORTS"),
+                (hook_path, models_path, "IMPORTS"),
+            ])
+
+        # ── Serializers subpackage (NEW for large) ───────────────────
+        serializer_kinds = ["json_serializer", "csv_serializer", "parquet_serializer"]
+        num_serializers = rng.randint(2, 3)
+        chosen_serializers = serializer_kinds[:num_serializers]
+
+        ser_init = f"{pkg}/serializers/__init__.py"
+        modules[ser_init] = ModuleSpec(
+            filepath=ser_init,
+            role="package_init",
+            purpose="Serializers subpackage init — output serialization modules",
+            exports=[],
+            imports_from=[],
+        )
+
+        serializer_paths: list[str] = []
+        formatters_path = f"{pkg}/utils/formatters.py"  # defined below
+        for skind in chosen_serializers:
+            neutral = _NEUTRAL_NAMES[name_idx]
+            name_idx += 1
+            ser_path = f"{pkg}/serializers/{neutral}.py"
+            serializer_paths.append(ser_path)
+            modules[ser_path] = ModuleSpec(
+                filepath=ser_path,
+                role="serializer",
+                purpose=f"Serializer: {skind.replace('_', ' ')} output format",
+                exports=[f"serialize_{skind.split('_')[0]}"],
+                imports_from=[models_path, formatters_path],
+                generation_hints={"serializer_format": skind.split("_")[0]},
+            )
+            edges.extend([
+                (ser_path, models_path, "IMPORTS"),
+                (ser_path, formatters_path, "IMPORTS"),
+            ])
+
+        # ── Utils subpackage ─────────────────────────────────────────
+        utils_init = f"{pkg}/utils/__init__.py"
+        modules[utils_init] = ModuleSpec(
+            filepath=utils_init,
+            role="package_init",
+            purpose="Utils subpackage init",
+            exports=[],
+            imports_from=[],
+        )
+
+        helpers_path = f"{pkg}/utils/helpers.py"
+        modules[helpers_path] = ModuleSpec(
+            filepath=helpers_path,
+            role="utils",
+            purpose="Shared utilities: logging setup, timing decorator, error helpers",
+            exports=["setup_logging", "log_stage", "timed"],
+            imports_from=[config_path],
+            generation_hints={},
+        )
+        edges.append((helpers_path, config_path, "IMPORTS"))
+
+        modules[formatters_path] = ModuleSpec(
+            filepath=formatters_path,
+            role="utils",
+            purpose="Output formatting: JSON, CSV, table formatters",
+            exports=["format_json", "format_csv", "format_table"],
+            imports_from=[models_path],
+            generation_hints={},
+        )
+        edges.append((formatters_path, models_path, "IMPORTS"))
+
+        # Stages import from helpers
+        for sp in stage_paths:
+            modules[sp].imports_from.append(helpers_path)
+            edges.append((sp, helpers_path, "IMPORTS"))
+
+        # ── Legacy / distractors ─────────────────────────────────────
+        legacy_init = f"{pkg}/legacy/__init__.py"
+        modules[legacy_init] = ModuleSpec(
+            filepath=legacy_init,
+            role="package_init",
+            purpose="Legacy subpackage init (deprecated code kept for reference)",
+            exports=[],
+            imports_from=[],
+        )
+
+        old_pipeline_path = f"{pkg}/legacy/old_pipeline.py"
+        modules[old_pipeline_path] = ModuleSpec(
+            filepath=old_pipeline_path,
+            role="distractor",
+            purpose="Deprecated: old monolithic pipeline (kept for reference, unused)",
+            exports=[],
+            imports_from=[models_path],
+            generation_hints={"dead_code": "true"},
+        )
+        edges.append((old_pipeline_path, models_path, "IMPORTS"))
+
+        compat_path = f"{pkg}/legacy/compat.py"
+        modules[compat_path] = ModuleSpec(
+            filepath=compat_path,
+            role="distractor",
+            purpose="Compatibility shims for legacy pipeline format",
+            exports=["convert_legacy_format"],
+            imports_from=[models_path],
+            generation_hints={},
+        )
+        edges.append((compat_path, models_path, "IMPORTS"))
+
+        deprecated_tests_path = f"{pkg}/legacy/deprecated_tests.py"
+        modules[deprecated_tests_path] = ModuleSpec(
+            filepath=deprecated_tests_path,
+            role="distractor",
+            purpose="Deprecated test file from the old pipeline — no longer runs",
+            exports=[],
+            imports_from=[models_path],
+            generation_hints={"dead_code": "true", "variant": "deprecated_tests"},
+        )
+        edges.append((deprecated_tests_path, models_path, "IMPORTS"))
+
+        migration_path = f"{pkg}/legacy/migration_v1.py"
+        modules[migration_path] = ModuleSpec(
+            filepath=migration_path,
+            role="distractor",
+            purpose="One-time migration script from pipeline v0 to v1 format",
+            exports=["migrate_v0_to_v1"],
+            imports_from=[models_path],
+            generation_hints={"variant": "migration"},
+        )
+        edges.append((migration_path, models_path, "IMPORTS"))
+
+        # ── Entry points ─────────────────────────────────────────────
+        runner_path = f"{pkg}/runner.py"
+        runner_imports = [config_path, registry_path, models_path, base_path]
+        runner_imports.extend(mw_paths)
+        runner_imports.extend(hook_paths)
+        modules[runner_path] = ModuleSpec(
+            filepath=runner_path,
+            role="orchestrator",
+            purpose="Pipeline runner: loads config, resolves stages via registry, "
+                    "executes pipeline with middleware and lifecycle hooks",
+            exports=["run_pipeline"],
+            imports_from=runner_imports,
+            generation_hints={
+                "stage_count": str(len(stages)),
+                "has_middleware": "true",
+                "has_hooks": "true",
+            },
+        )
+        edges.extend([
+            (runner_path, config_path, "IMPORTS"),
+            (runner_path, registry_path, "IMPORTS"),
+            (runner_path, models_path, "IMPORTS"),
+            (runner_path, base_path, "IMPORTS"),
+            (runner_path, registry_path, "CALLS_API"),
+        ])
+        for mw in mw_paths:
+            edges.extend([
+                (runner_path, mw, "IMPORTS"),
+                (runner_path, mw, "CALLS_API"),
+            ])
+        for hp in hook_paths:
+            edges.extend([
+                (runner_path, hp, "IMPORTS"),
+                (runner_path, hp, "CALLS_API"),
+            ])
+        # Runner calls stages at runtime via registry
+        for sp in stage_paths:
+            edges.append((runner_path, sp, "CALLS_API"))
+        # Runner calls serializer for output
+        if serializer_paths:
+            edges.extend([
+                (runner_path, serializer_paths[0], "IMPORTS"),
+                (runner_path, serializer_paths[0], "CALLS_API"),
+            ])
+            modules[runner_path].imports_from.append(serializer_paths[0])
+
+        # Factory: wires registry + config + middleware + hooks
+        factory_path = f"{pkg}/pipeline_factory.py"
+        factory_imports = [config_path, registry_path, runner_path]
+        factory_imports.extend(mw_paths)
+        factory_imports.extend(hook_paths)
+        modules[factory_path] = ModuleSpec(
+            filepath=factory_path,
+            role="factory",
+            purpose="Pipeline factory: constructs configured pipeline instances "
+                    "with middleware and hooks wired together",
+            exports=["create_pipeline", "PipelineBuilder"],
+            imports_from=factory_imports,
+            generation_hints={},
+        )
+        edges.extend([
+            (factory_path, config_path, "IMPORTS"),
+            (factory_path, registry_path, "IMPORTS"),
+            (factory_path, runner_path, "IMPORTS"),
+            (factory_path, registry_path, "CALLS_API"),
+            (factory_path, runner_path, "CALLS_API"),
+        ])
+        for mw in mw_paths:
+            edges.extend([
+                (factory_path, mw, "IMPORTS"),
+                (factory_path, mw, "CALLS_API"),
+            ])
+        for hp in hook_paths:
+            edges.extend([
+                (factory_path, hp, "IMPORTS"),
+                (factory_path, hp, "CALLS_API"),
+            ])
+
+        cli_path = f"{pkg}/cli.py"
+        modules[cli_path] = ModuleSpec(
+            filepath=cli_path,
+            role="entry_point",
+            purpose="CLI entry point: argument parsing and pipeline invocation via factory",
+            exports=["main"],
+            imports_from=[factory_path, config_path],
+            generation_hints={"uses_factory": "true"},
+        )
+        edges.extend([
+            (cli_path, factory_path, "IMPORTS"),
+            (cli_path, config_path, "IMPORTS"),
+            (cli_path, factory_path, "CALLS_API"),
+        ])
+
+        return modules, edges
+
+    def _build_large_invariants(
+        self,
+        pkg: str,
+        modules: dict[str, ModuleSpec],
+        edges: list[tuple[str, str, str]],
+        stages: list[StageInfo],
+        rng: random.Random,
+    ) -> list[InvariantSpec]:
+        """Build 20-25 planted invariants for a large pipeline codebase."""
+        invariants: list[InvariantSpec] = []
+        inv_id = 0
+
+        # Collect paths by role
+        stage_paths = [
+            m.filepath for m in modules.values() if m.role == "stage"
+        ]
+        adapter_paths = [
+            m.filepath for m in modules.values() if m.role == "adapter"
+        ]
+        mw_paths = [
+            m.filepath for m in modules.values() if m.role == "middleware"
+        ]
+        validator_paths = [
+            m.filepath for m in modules.values() if m.role == "validator"
+        ]
+        hook_paths = [
+            m.filepath for m in modules.values() if m.role == "hook"
+        ]
+        serializer_paths = [
+            m.filepath for m in modules.values() if m.role == "serializer"
+        ]
+        distractor_paths = [
+            m.filepath for m in modules.values() if m.role == "distractor"
+        ]
+        utils_paths = [
+            m.filepath for m in modules.values() if m.role == "utils"
+        ]
+        base_path = next(
+            m.filepath for m in modules.values() if m.role == "base"
+        )
+        models_path = next(
+            m.filepath for m in modules.values() if m.role == "data_model"
+        )
+        types_path = next(
+            m.filepath for m in modules.values() if m.role == "types"
+        )
+        config_path = next(
+            m.filepath for m in modules.values() if m.role == "config"
+        )
+        registry_path = next(
+            m.filepath for m in modules.values() if m.role == "registry"
+        )
+        runner_path = next(
+            m.filepath for m in modules.values() if m.role == "orchestrator"
+        )
+        factory_path = next(
+            m.filepath for m in modules.values() if m.role == "factory"
+        )
+
+        # ── DATAFLOW: linear stage ordering ──────────────────────────
+        for i in range(len(stages) - 1):
+            inv_id += 1
+            invariants.append(InvariantSpec(
+                id=f"inv-{inv_id:03d}",
+                type=InvariantType.DATAFLOW,
+                description=(
+                    f"{stages[i].module_name} must produce {stages[i].output_type} "
+                    f"before {stages[i+1].module_name} can consume it as "
+                    f"{stages[i+1].input_type}"
+                ),
+                involved_modules=[stage_paths[i], stage_paths[i + 1]],
+                rationale=(
+                    "Pipeline stages form a linear data flow; each stage's output "
+                    "type is the next stage's input type, enforcing transformation order"
+                ),
+            ))
+
+        # ── INTERFACE: all stages share StageBase interface ──────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.INTERFACE,
+            description=(
+                "Every processing stage inherits from StageBase and implements "
+                "process(data, config) -> list[OutputType]"
+            ),
+            involved_modules=[base_path] + stage_paths,
+            rationale=(
+                "A uniform stage interface enables the registry to load stages "
+                "generically and allows middleware to wrap any stage"
+            ),
+        ))
+
+        # ── BOUNDARY: stages must not import each other ──────────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.BOUNDARY,
+            description=(
+                "No stage module may import from any other stage module "
+                "(stages communicate only via data passed by the runner)"
+            ),
+            involved_modules=stage_paths,
+            rationale=(
+                "Direct inter-stage imports would create hidden ordering "
+                "dependencies and break stage isolation"
+            ),
+        ))
+
+        # ── BOUNDARY: stages must not import runner ──────────────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.BOUNDARY,
+            description=(
+                "No stage, adapter, or middleware may import from runner.py "
+                "(no reverse dependency on orchestrator)"
+            ),
+            involved_modules=[runner_path] + stage_paths + adapter_paths + mw_paths,
+            rationale=(
+                "The orchestrator depends on stages, not the other way around; "
+                "circular dependencies would make stages untestable"
+            ),
+        ))
+
+        # ── BOUNDARY: adapters must not import middleware ─────────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.BOUNDARY,
+            description=(
+                "Adapter modules must not import from middleware modules "
+                "(layer boundary: adapters wrap stages, middleware wraps execution)"
+            ),
+            involved_modules=adapter_paths + mw_paths,
+            rationale=(
+                "Adapters and middleware operate at different abstraction layers; "
+                "cross-layer imports would blur responsibilities"
+            ),
+        ))
+
+        # ── BOUNDARY: no circular imports within utils/ ──────────────
+        if len(utils_paths) >= 2:
+            inv_id += 1
+            invariants.append(InvariantSpec(
+                id=f"inv-{inv_id:03d}",
+                type=InvariantType.BOUNDARY,
+                description=(
+                    "Utility modules must not import from each other "
+                    "(no circular dependencies in utils/)"
+                ),
+                involved_modules=utils_paths,
+                rationale=(
+                    "Utility modules should be leaf dependencies; mutual imports "
+                    "would create import cycles and complicate testing"
+                ),
+            ))
+
+        # ── BOUNDARY: validators must not import stages ──────────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.BOUNDARY,
+            description=(
+                "Validator modules must not import from stage modules "
+                "(validators are called BY stages, not the reverse)"
+            ),
+            involved_modules=validator_paths + stage_paths,
+            rationale=(
+                "Validators are generic data checks; importing stage-specific "
+                "logic would create circular dependencies and prevent reuse"
+            ),
+        ))
+
+        # ── BOUNDARY: hooks must not import stages ───────────────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.BOUNDARY,
+            description=(
+                "Hook modules must not import from stage modules "
+                "(hooks are lifecycle concerns, not data processing)"
+            ),
+            involved_modules=hook_paths + stage_paths,
+            rationale=(
+                "Hooks handle pipeline lifecycle (setup, teardown, error handling); "
+                "coupling them to stage internals would break separation of concerns"
+            ),
+        ))
+
+        # ── BOUNDARY: serializers must not import stages ─────────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.BOUNDARY,
+            description=(
+                "Serializer modules must not import from stage modules "
+                "(serializers work on output types only)"
+            ),
+            involved_modules=serializer_paths + stage_paths,
+            rationale=(
+                "Serializers handle output formatting; they should depend only "
+                "on data models and formatters, not on processing logic"
+            ),
+        ))
+
+        # ── BOUNDARY: factory must not import stages directly ────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.BOUNDARY,
+            description=(
+                "Pipeline factory must not import stage modules directly "
+                "(must go through the registry for stage resolution)"
+            ),
+            involved_modules=[factory_path, registry_path] + stage_paths,
+            rationale=(
+                "The factory should be stage-agnostic; direct stage imports "
+                "would bypass the registry and hard-code pipeline structure"
+            ),
+        ))
+
+        # ── BOUNDARY: distractors have no incoming edges ─────────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.BOUNDARY,
+            description=(
+                "Legacy modules are dead code — no active module imports from them"
+            ),
+            involved_modules=distractor_paths,
+            rationale="Dead code is kept for reference only, not used at runtime",
+        ))
+
+        # ── INTERFACE: all validators share validate() signature ─────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.INTERFACE,
+            description=(
+                "Every validator module exports a validate(data, config) function "
+                "that returns a ValidationResult or raises ValidationError"
+            ),
+            involved_modules=[types_path] + validator_paths,
+            rationale=(
+                "A uniform validator interface allows stages to call any "
+                "validator generically and enables validator composition"
+            ),
+        ))
+
+        # ── INTERFACE: all hooks share execute() signature ───────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.INTERFACE,
+            description=(
+                "Every hook module exports an execute(context) function — "
+                "the runner calls hooks through this uniform interface"
+            ),
+            involved_modules=[types_path] + hook_paths,
+            rationale=(
+                "A uniform hook interface lets the runner invoke any hook "
+                "without type-specific logic"
+            ),
+        ))
+
+        # ── INVARIANT: config.batch_size respected ───────────────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.INVARIANT,
+            description=(
+                "PipelineConfig.batch_size must be respected by all stages "
+                "and the runner for consistent batch processing"
+            ),
+            involved_modules=[config_path, runner_path] + stage_paths,
+            rationale=(
+                "Batch size is a global pipeline property; inconsistent batch "
+                "handling between stages would cause data loss or duplication"
+            ),
+        ))
+
+        # ── INVARIANT: registry must match config stage order ────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.INVARIANT,
+            description=(
+                "StageRegistry must resolve stages in the order specified "
+                "by PipelineConfig.stage_order"
+            ),
+            involved_modules=[registry_path, config_path, runner_path],
+            rationale=(
+                "Config-driven stage ordering is the single source of truth; "
+                "registry resolution must respect it to maintain pipeline semantics"
+            ),
+        ))
+
+        # ── INVARIANT: factory must wire all middleware types ────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.INVARIANT,
+            description=(
+                "Pipeline factory must apply all three middleware types "
+                "(logging, retry, metrics) to ensure complete observability"
+            ),
+            involved_modules=[factory_path] + mw_paths,
+            rationale=(
+                "Missing middleware would create blind spots in monitoring "
+                "or leave stages without retry protection"
+            ),
+        ))
+
+        # ── INVARIANT: hook execution order ──────────────────────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.INVARIANT,
+            description=(
+                "Lifecycle hooks must execute in order: pre_pipeline before "
+                "stage processing, post_pipeline after, on_error on failure"
+            ),
+            involved_modules=[runner_path] + hook_paths,
+            rationale=(
+                "Incorrect hook ordering would cause setup to run after "
+                "processing or teardown to be skipped on error"
+            ),
+        ))
+
+        # ── DATAFLOW: serializer consumes final stage output ────────
+        if serializer_paths and stage_paths:
+            inv_id += 1
+            invariants.append(InvariantSpec(
+                id=f"inv-{inv_id:03d}",
+                type=InvariantType.DATAFLOW,
+                description=(
+                    "Serializer output must consume the final stage's output type — "
+                    "the end-to-end type chain must be consistent"
+                ),
+                involved_modules=[stage_paths[-1]] + serializer_paths,
+                rationale=(
+                    "A type mismatch between the last stage and serializer "
+                    "would cause runtime serialization failures"
+                ),
+            ))
+
+        # ── PURPOSE: why stages are separated ────────────────────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.PURPOSE,
+            description=(
+                "Each processing stage is a separate module to enforce "
+                "single responsibility and enable independent testing"
+            ),
+            involved_modules=stage_paths,
+            rationale=(
+                "Separating stages allows each to be tested, replaced, or "
+                "reordered independently; merging stages would couple concerns"
+            ),
+        ))
+
+        # ── PURPOSE: why adapters exist ──────────────────────────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.PURPOSE,
+            description=(
+                "Adapter modules provide a stable external interface for stages "
+                "that may change their internal implementation"
+            ),
+            involved_modules=adapter_paths + stage_paths,
+            rationale=(
+                "Adapters decouple external consumers from stage internals; "
+                "stage refactoring doesn't break external code"
+            ),
+        ))
+
+        # ── PURPOSE: why validators are separate from stages ────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.PURPOSE,
+            description=(
+                "Validators are separate modules because validation is a "
+                "cross-cutting concern distinct from domain-specific transformation"
+            ),
+            involved_modules=validator_paths + stage_paths,
+            rationale=(
+                "Embedding validation in stages would duplicate logic "
+                "and make validation rules inconsistent across stages"
+            ),
+        ))
+
+        # ── PURPOSE: why lifecycle hooks exist ───────────────────────
+        inv_id += 1
+        invariants.append(InvariantSpec(
+            id=f"inv-{inv_id:03d}",
+            type=InvariantType.PURPOSE,
+            description=(
+                "Lifecycle hooks (pre/post/error) are separate modules because "
+                "lifecycle management is distinct from data processing"
+            ),
+            involved_modules=hook_paths + [runner_path],
+            rationale=(
+                "Inline lifecycle callbacks in the runner would couple "
+                "lifecycle management to orchestration logic"
+            ),
+        ))
+
+        return invariants
+
+    def _build_large_rationales(
+        self,
+        pkg: str,
+        modules: dict[str, ModuleSpec],
+        stages: list[StageInfo],
+    ) -> list[DesignRationaleSpec]:
+        """Build design rationales for large pipeline codebases."""
+        rationales: list[DesignRationaleSpec] = []
+
+        stage_paths = [
+            m.filepath for m in modules.values() if m.role == "stage"
+        ]
+        adapter_paths = [
+            m.filepath for m in modules.values() if m.role == "adapter"
+        ]
+        mw_paths = [
+            m.filepath for m in modules.values() if m.role == "middleware"
+        ]
+        validator_paths = [
+            m.filepath for m in modules.values() if m.role == "validator"
+        ]
+        hook_paths = [
+            m.filepath for m in modules.values() if m.role == "hook"
+        ]
+        serializer_paths = [
+            m.filepath for m in modules.values() if m.role == "serializer"
+        ]
+        models_path = next(
+            m.filepath for m in modules.values() if m.role == "data_model"
+        )
+        base_path = next(
+            m.filepath for m in modules.values() if m.role == "base"
+        )
+        config_path = next(
+            m.filepath for m in modules.values() if m.role == "config"
+        )
+        registry_path = next(
+            m.filepath for m in modules.values() if m.role == "registry"
+        )
+        runner_path = next(
+            m.filepath for m in modules.values() if m.role == "orchestrator"
+        )
+        factory_path = next(
+            m.filepath for m in modules.values() if m.role == "factory"
+        )
+
+        # Inherit all 5 medium rationales
+        rationales.append(DesignRationaleSpec(
+            id="dr-001",
+            question=(
+                f"Why is there a separate {models_path} instead of "
+                f"defining data types within each stage?"
+            ),
+            answer=(
+                "Centralizing data types in models.py prevents circular imports "
+                "between stages and ensures type consistency across the pipeline."
+            ),
+            affected_modules=[models_path] + stage_paths,
+            downstream_effects=[
+                "Moving types into stages would create circular imports",
+                "Type changes would require editing multiple files",
+                "Stages could no longer be tested independently",
+            ],
+        ))
+
+        rationales.append(DesignRationaleSpec(
+            id="dr-002",
+            question=(
+                f"Why do all stages inherit from StageBase in {base_path}?"
+            ),
+            answer=(
+                "A common base class enforces a uniform process() interface, "
+                "enables the registry to load stages generically, and allows "
+                "middleware to wrap any stage without special-casing."
+            ),
+            affected_modules=[base_path] + stage_paths + adapter_paths,
+            downstream_effects=[
+                "Removing StageBase would break registry auto-discovery",
+                "Middleware would need per-stage wiring logic",
+                "Adding a new stage would require updating the runner",
+            ],
+        ))
+
+        rationales.append(DesignRationaleSpec(
+            id="dr-003",
+            question=(
+                f"Why does {runner_path} use {registry_path} to resolve stages "
+                f"instead of importing them directly?"
+            ),
+            answer=(
+                "Registry-based resolution allows stage ordering to be config-driven. "
+                "Direct imports would hard-code the pipeline structure and require "
+                "code changes to add, remove, or reorder stages."
+            ),
+            affected_modules=[runner_path, registry_path, config_path] + stage_paths,
+            downstream_effects=[
+                "Direct imports would hide architecture from config",
+                "Stage ordering changes would require code edits",
+                "Dynamic stage loading (e.g., plugins) would be impossible",
+            ],
+        ))
+
+        rationales.append(DesignRationaleSpec(
+            id="dr-004",
+            question=(
+                "Why are there adapter modules wrapping some stages instead of "
+                "exposing stages directly?"
+            ),
+            answer=(
+                "Adapters provide a stable external interface. If a stage's "
+                "internal implementation changes, only its adapter needs updating, "
+                "not every external consumer."
+            ),
+            affected_modules=adapter_paths + stage_paths,
+            downstream_effects=[
+                "Direct stage access would couple external code to internals",
+                "Stage API changes would break all consumers simultaneously",
+                "Testing external integrations would require full stage setup",
+            ],
+        ))
+
+        rationales.append(DesignRationaleSpec(
+            id="dr-005",
+            question=(
+                "Why is logging/retry/metrics implemented as middleware modules "
+                "rather than embedded in each stage?"
+            ),
+            answer=(
+                "Middleware modules apply cross-cutting concerns uniformly. "
+                "Embedding logging/retry in each stage would duplicate code "
+                "and risk inconsistent behavior across stages."
+            ),
+            affected_modules=mw_paths + stage_paths + [runner_path],
+            downstream_effects=[
+                "Per-stage logging would diverge in format and verbosity",
+                "Retry logic would be duplicated and potentially inconsistent",
+                "Adding a new cross-cutting concern would touch every stage",
+            ],
+        ))
+
+        # New rationales for large tier
+        rationales.append(DesignRationaleSpec(
+            id="dr-006",
+            question=(
+                "Why are validators in a separate subpackage instead of "
+                "built into each stage's process() method?"
+            ),
+            answer=(
+                "Validation is a cross-cutting concern: multiple stages share "
+                "the same validation rules. Separating validators allows reuse, "
+                "consistent error handling, and independent testing of validation logic."
+            ),
+            affected_modules=validator_paths + stage_paths,
+            downstream_effects=[
+                "Embedding validation in stages would duplicate validation rules",
+                "Changing a validation rule would require editing multiple stages",
+                "Validation could not be composed or chained independently",
+            ],
+        ))
+
+        rationales.append(DesignRationaleSpec(
+            id="dr-007",
+            question=(
+                "Why does the pipeline use a factory module instead of "
+                "constructing the pipeline directly in cli.py?"
+            ),
+            answer=(
+                "The factory encapsulates the complex wiring of registry, "
+                "middleware, hooks, and configuration. CLI, tests, and other "
+                "entry points can create pipelines without duplicating setup logic."
+            ),
+            affected_modules=[factory_path, runner_path, registry_path]
+                             + mw_paths + hook_paths,
+            downstream_effects=[
+                "Without the factory, CLI and tests would duplicate wiring code",
+                "Adding a new middleware type would require changes in multiple places",
+                "Pipeline configuration would be scattered across entry points",
+            ],
+        ))
+
+        rationales.append(DesignRationaleSpec(
+            id="dr-008",
+            question=(
+                "Why are lifecycle hooks separate modules instead of "
+                "callback functions inside the runner?"
+            ),
+            answer=(
+                "Separate hook modules allow lifecycle behavior to be "
+                "configured, replaced, or extended independently. Inline "
+                "callbacks would couple lifecycle logic to the runner."
+            ),
+            affected_modules=hook_paths + [runner_path, factory_path],
+            downstream_effects=[
+                "Inline hooks could not be replaced without editing the runner",
+                "Testing lifecycle behavior would require full pipeline setup",
+                "Adding monitoring or alerting hooks would bloat the runner",
             ],
         ))
 

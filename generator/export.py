@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import shutil
 import textwrap
-import uuid
+import hashlib
 from pathlib import Path
 
 from models import (
@@ -160,6 +160,16 @@ def _generate_source(spec: ModuleSpec, blueprint: PatternBlueprint) -> str:
         return _gen_source_module(spec)
     elif role == "sink":
         return _gen_sink_module(spec)
+    elif role == "types":
+        return _gen_types(spec)
+    elif role == "validator":
+        return _gen_validator(spec)
+    elif role == "hook":
+        return _gen_hook(spec)
+    elif role == "serializer":
+        return _gen_serializer(spec)
+    elif role == "factory":
+        return _gen_factory(spec)
     else:
         return f'"""Module: {spec.filepath} (role={role})"""\n'
 
@@ -635,6 +645,7 @@ def _gen_utils(spec: ModuleSpec) -> str:
 
 def _gen_distractor(spec: ModuleSpec) -> str:
     """Generate a distractor (dead code) module."""
+    variant = spec.generation_hints.get("variant", "")
     if "old_pipeline" in spec.filepath:
         return textwrap.dedent('''\
             """DEPRECATED: Old monolithic pipeline implementation.
@@ -656,6 +667,54 @@ def _gen_distractor(spec: ModuleSpec) -> str:
                 raise NotImplementedError(
                     "Old pipeline has been replaced. Use runner.run_pipeline() instead."
                 )
+        ''')
+    elif variant == "deprecated_tests":
+        return textwrap.dedent('''\
+            """DEPRECATED: Old test file from the original monolithic pipeline.
+
+            These tests are no longer valid — the pipeline architecture has been
+            refactored to use registry-driven stage resolution. Kept for
+            historical reference only. See test_smoke.py for current tests.
+            """
+
+            from ..models import *  # noqa: F401,F403
+
+
+            def test_old_pipeline_runs():
+                """DEPRECATED: No longer valid after refactor."""
+                # This test called the old monolithic run_old_pipeline()
+                # which has been replaced by runner.run_pipeline()
+                pass
+
+
+            def test_old_format_output():
+                """DEPRECATED: Output format has changed."""
+                # The old pipeline produced flat dicts; the new pipeline
+                # produces typed Pydantic models via serializers
+                pass
+        ''')
+    elif variant == "migration":
+        return textwrap.dedent('''\
+            """One-time migration script: pipeline v0 -> v1 format.
+
+            This script was used during the architecture refactor to convert
+            old-format data files to the new Pydantic model format. It is
+            no longer needed for normal operation.
+            """
+
+            from ..models import *  # noqa: F401,F403
+
+
+            def migrate_v0_to_v1(input_path: str, output_path: str) -> int:
+                """Migrate data files from v0 flat-dict format to v1 Pydantic format.
+
+                Returns:
+                    Number of records migrated.
+                """
+                # In production, this read old JSON files line-by-line,
+                # converted each record, and wrote new typed JSON.
+                # Kept for reference in case a rollback is needed.
+                return 0
         ''')
     else:  # compat
         return textwrap.dedent('''\
@@ -770,6 +829,307 @@ def _gen_cli(spec: ModuleSpec) -> str:
     ''')
 
 
+def _gen_types(spec: ModuleSpec) -> str:
+    """Generate types.py with Protocol definitions and type aliases."""
+    return textwrap.dedent('''\
+        """Protocol definitions and type aliases for the pipeline."""
+
+        from typing import Any, Protocol, runtime_checkable
+
+
+        @runtime_checkable
+        class StageProtocol(Protocol):
+            """Protocol that all pipeline stages must satisfy."""
+
+            name: str
+
+            def process(self, data: list[Any], config: Any) -> list[Any]: ...
+
+            def validate_input(self, data: list[Any]) -> bool: ...
+
+
+        @runtime_checkable
+        class ValidatorProtocol(Protocol):
+            """Protocol for input validators."""
+
+            def validate(self, data: list[Any], config: Any) -> bool: ...
+
+
+        @runtime_checkable
+        class HookProtocol(Protocol):
+            """Protocol for lifecycle hooks."""
+
+            def execute(self, context: dict[str, Any]) -> None: ...
+
+
+        # Type aliases
+        PipelineData = list[Any]
+        StageResult = list[Any]
+        ValidationResult = bool
+    ''')
+
+
+def _gen_validator(spec: ModuleSpec) -> str:
+    """Generate a validator module."""
+    vtype = spec.generation_hints.get("validator_type", "schema")
+
+    descriptions = {
+        "schema": (
+            "Schema validation",
+            "Validates that input records conform to the expected schema.\n"
+            "    Checks required fields, types, and structure.",
+        ),
+        "integrity": (
+            "Referential integrity validation",
+            "Validates referential integrity between records.\n"
+            "    Checks that foreign key references are valid.",
+        ),
+        "range": (
+            "Value range validation",
+            "Validates that numeric and date fields fall within expected ranges.\n"
+            "    Flags outliers and impossible values.",
+        ),
+        "business_rule": (
+            "Business rule validation",
+            "Validates domain-specific business rules.\n"
+            "    Checks constraints that depend on multiple fields.",
+        ),
+    }
+    title, docstring = descriptions.get(vtype, ("Validation", "Generic validation."))
+
+    return textwrap.dedent(f'''\
+        """{title} for pipeline input data."""
+
+        from typing import Any
+
+        from ..exceptions import ValidationError
+        from ..models import BaseModel
+        from ..types import ValidatorProtocol
+
+
+        class {vtype.title().replace("_", "")}Validator:
+            """{docstring}"""
+
+            def validate(self, data: list[Any], config: Any) -> bool:
+                """Validate a batch of records.
+
+                Args:
+                    data: Input records to validate.
+                    config: PipelineConfig instance.
+
+                Returns:
+                    True if all records pass validation.
+
+                Raises:
+                    ValidationError: If validation fails.
+                """
+                for record in data:
+                    if not self._check_one(record):
+                        raise ValidationError(
+                            field="{vtype}",
+                            message=f"Record {{getattr(record, 'id', '?')}} failed {vtype} validation",
+                        )
+                return True
+
+            def _check_one(self, record: Any) -> bool:
+                """Check a single record."""
+                return hasattr(record, "id") and hasattr(record, "data")
+
+
+        def validate_{vtype}(data: list[Any], config: Any) -> bool:
+            """Functional interface for {vtype} validation."""
+            return {vtype.title().replace("_", "")}Validator().validate(data, config)
+    ''')
+
+
+def _gen_hook(spec: ModuleSpec) -> str:
+    """Generate a lifecycle hook module."""
+    htype = spec.generation_hints.get("hook_type", "pre_pipeline")
+
+    descriptions = {
+        "pre_pipeline": (
+            "Pre-pipeline lifecycle hook",
+            "Executed before pipeline processing begins.\n"
+            "    Sets up logging, validates configuration, initializes resources.",
+        ),
+        "post_pipeline": (
+            "Post-pipeline lifecycle hook",
+            "Executed after pipeline processing completes.\n"
+            "    Writes summary metrics, closes resources, sends notifications.",
+        ),
+        "on_error": (
+            "Error handling lifecycle hook",
+            "Executed when pipeline processing encounters an error.\n"
+            "    Logs error details, attempts cleanup, sends alerts.",
+        ),
+    }
+    title, docstring = descriptions.get(htype, ("Lifecycle hook", "Generic hook."))
+
+    return textwrap.dedent(f'''\
+        """{title} — executed by the pipeline runner."""
+
+        import logging
+        from typing import Any
+
+        from ..config import PipelineConfig
+        from ..models import BaseModel
+
+        logger = logging.getLogger(__name__)
+
+
+        def {htype}_hook(context: dict[str, Any]) -> None:
+            """{docstring}"""
+            config = context.get("config")
+            logger.info("{htype} hook executing")
+
+            if config and hasattr(config, "log_level"):
+                logger.debug("Pipeline config: log_level=%s", config.log_level)
+
+
+        def execute(context: dict[str, Any]) -> None:
+            """Uniform hook interface — delegates to {htype}_hook."""
+            {htype}_hook(context)
+    ''')
+
+
+def _gen_serializer(spec: ModuleSpec) -> str:
+    """Generate a serializer module."""
+    fmt = spec.generation_hints.get("serializer_format", "json")
+
+    if fmt == "json":
+        return textwrap.dedent('''\
+            """JSON serializer for pipeline output."""
+
+            import json
+            from typing import Any
+
+            from ..models import BaseModel
+            from ..utils.formatters import format_json
+
+
+            def serialize_json(records: list[Any], output_path: str = "") -> str:
+                """Serialize pipeline output as JSON.
+
+                Uses the shared format_json utility for consistent formatting,
+                then optionally writes to the output path.
+                """
+                result = format_json(records)
+                if output_path:
+                    with open(output_path, "w") as f:
+                        f.write(result)
+                return result
+        ''')
+    elif fmt == "csv":
+        return textwrap.dedent('''\
+            """CSV serializer for pipeline output."""
+
+            from typing import Any
+
+            from ..models import BaseModel
+            from ..utils.formatters import format_csv
+
+
+            def serialize_csv(records: list[Any], output_path: str = "") -> str:
+                """Serialize pipeline output as CSV.
+
+                Uses the shared format_csv utility for consistent formatting,
+                then optionally writes to the output path.
+                """
+                result = format_csv(records)
+                if output_path:
+                    with open(output_path, "w") as f:
+                        f.write(result)
+                return result
+        ''')
+    else:  # parquet
+        return textwrap.dedent('''\
+            """Parquet-style serializer for pipeline output.
+
+            Note: This is a simplified implementation that serializes to
+            a columnar JSON format. Real parquet support would use pyarrow.
+            """
+
+            import json
+            from typing import Any
+
+            from ..models import BaseModel
+            from ..utils.formatters import format_json
+
+
+            def serialize_parquet(records: list[Any], output_path: str = "") -> str:
+                """Serialize pipeline output in columnar format.
+
+                Converts row-oriented records to column-oriented format
+                for efficient downstream analysis.
+                """
+                if not records:
+                    return "{}"
+
+                # Columnar representation
+                columns: dict[str, list] = {}
+                for record in records:
+                    d = record.model_dump() if hasattr(record, "model_dump") else record
+                    for key, val in d.items():
+                        columns.setdefault(key, []).append(val)
+
+                result = json.dumps(columns, indent=2)
+                if output_path:
+                    with open(output_path, "w") as f:
+                        f.write(result)
+                return result
+        ''')
+
+
+def _gen_factory(spec: ModuleSpec) -> str:
+    """Generate pipeline_factory.py."""
+    return textwrap.dedent('''\
+        """Pipeline factory: constructs configured pipeline instances."""
+
+        from typing import Any
+
+        from .config import PipelineConfig
+        from .registry import get_registry
+        from .runner import run_pipeline
+
+
+        class PipelineBuilder:
+            """Builder pattern for constructing configured pipelines.
+
+            Wires together registry, middleware, hooks, and configuration
+            into a ready-to-run pipeline instance.
+            """
+
+            def __init__(self, config: PipelineConfig | None = None) -> None:
+                self._config = config or PipelineConfig()
+                self._middleware: list[Any] = []
+                self._hooks: list[Any] = []
+
+            def with_middleware(self, middleware_fn: Any) -> "PipelineBuilder":
+                """Add a middleware function to the pipeline."""
+                self._middleware.append(middleware_fn)
+                return self
+
+            def with_hook(self, hook_fn: Any) -> "PipelineBuilder":
+                """Add a lifecycle hook to the pipeline."""
+                self._hooks.append(hook_fn)
+                return self
+
+            def build(self) -> Any:
+                """Build and return the configured pipeline runner."""
+                return {
+                    "config": self._config,
+                    "middleware": self._middleware,
+                    "hooks": self._hooks,
+                    "registry": get_registry(),
+                }
+
+
+        def create_pipeline(config: PipelineConfig | None = None) -> list[Any]:
+            """Create and execute a pipeline with default configuration."""
+            return run_pipeline(config)
+    ''')
+
+
 def _gen_source_module(spec: ModuleSpec) -> str:
     """Generate source.py for small blueprints."""
     out_type = spec.generation_hints.get("output_type", "Any")
@@ -827,53 +1187,97 @@ def _generate_pipeline_config(blueprint: PatternBlueprint) -> dict:
 
 def _generate_test_evidence(blueprint: PatternBlueprint) -> str:
     """Generate test_smoke.py as test evidence for invariants."""
-    stage_paths = [
-        m.filepath for m in blueprint.modules.values() if m.role == "stage"
+    has_validators = any(
+        m.role == "validator" for m in blueprint.modules.values()
+    )
+    has_hooks = any(
+        m.role == "hook" for m in blueprint.modules.values()
+    )
+
+    lines = [
+        '"""Smoke tests verifying pipeline architectural invariants.',
+        "",
+        "IMPORTANT: These tests document and enforce critical architectural",
+        "constraints. Stages must not import from each other directly.",
+        "All stage access must go through the base interface.",
+        '"""',
+        "",
+        "import ast",
+        "import importlib",
+        "from pathlib import Path",
+        "",
+        "",
+        "def test_no_inter_stage_imports():",
+        '    """Stages must not import from each other (boundary invariant)."""',
+        '    stages_dir = Path(__file__).parent / "stages"',
+        '    stage_files = sorted(stages_dir.glob("mod_*.py"))',
+        "    stage_names = {f.stem for f in stage_files}",
+        "",
+        "    for sf in stage_files:",
+        "        tree = ast.parse(sf.read_text())",
+        "        for node in ast.walk(tree):",
+        "            if isinstance(node, ast.ImportFrom) and node.module:",
+        '                imported = node.module.split(".")[-1]',
+        "                assert imported not in stage_names or imported == sf.stem, (",
+        '                    f"{sf.name} imports from stage {imported}"',
+        "                )",
+        "",
+        "",
+        "def test_stages_inherit_base():",
+        '    """All stages must inherit from StageBase (interface invariant)."""',
+        '    stages_dir = Path(__file__).parent / "stages"',
+        '    for sf in sorted(stages_dir.glob("mod_*.py")):',
+        "        source = sf.read_text()",
+        '        assert "StageBase" in source, (',
+        '            f"{sf.name} does not reference StageBase"',
+        "        )",
     ]
-    return textwrap.dedent(f'''\
-        """Smoke tests verifying pipeline architectural invariants.
 
-        IMPORTANT: These tests document and enforce critical architectural
-        constraints. Stages must not import from each other directly.
-        All stage access must go through the base interface.
-        """
+    if has_validators:
+        lines.extend([
+            "",
+            "",
+            "def test_validators_dont_import_stages():",
+            '    """Validators must not import from stages (boundary invariant)."""',
+            '    validators_dir = Path(__file__).parent / "validators"',
+            '    if not validators_dir.exists():',
+            '        return',
+            '    for vf in sorted(validators_dir.glob("mod_*.py")):',
+            '        tree = ast.parse(vf.read_text())',
+            '        for node in ast.walk(tree):',
+            '            if isinstance(node, ast.ImportFrom) and node.module:',
+            '                assert "stages" not in node.module, (',
+            '                    f"{vf.name} imports from stages"',
+            '                )',
+        ])
 
-        import ast
-        import importlib
-        from pathlib import Path
+    if has_hooks:
+        lines.extend([
+            "",
+            "",
+            "def test_hooks_dont_import_stages():",
+            '    """Hooks must not import from stages (boundary invariant)."""',
+            '    hooks_dir = Path(__file__).parent / "hooks"',
+            '    if not hooks_dir.exists():',
+            '        return',
+            '    for hf in sorted(hooks_dir.glob("mod_*.py")):',
+            '        tree = ast.parse(hf.read_text())',
+            '        for node in ast.walk(tree):',
+            '            if isinstance(node, ast.ImportFrom) and node.module:',
+            '                assert "stages" not in node.module, (',
+            '                    f"{hf.name} imports from stages"',
+            '                )',
+        ])
 
-
-        def test_no_inter_stage_imports():
-            """Stages must not import from each other (boundary invariant)."""
-            stages_dir = Path(__file__).parent / "stages"
-            stage_files = sorted(stages_dir.glob("mod_*.py"))
-            stage_names = {{f.stem for f in stage_files}}
-
-            for sf in stage_files:
-                tree = ast.parse(sf.read_text())
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.ImportFrom) and node.module:
-                        imported = node.module.split(".")[-1]
-                        assert imported not in stage_names or imported == sf.stem, (
-                            f"{{sf.name}} imports from stage {{imported}}"
-                        )
-
-
-        def test_stages_inherit_base():
-            """All stages must inherit from StageBase (interface invariant)."""
-            # This test verifies the interface invariant is maintained
-            stages_dir = Path(__file__).parent / "stages"
-            for sf in sorted(stages_dir.glob("mod_*.py")):
-                source = sf.read_text()
-                assert "StageBase" in source, (
-                    f"{{sf.name}} does not reference StageBase"
-                )
-    ''')
+    lines.append("")
+    return "\n".join(lines) + "\n"
 
 
 def _blueprint_to_ground_truth(blueprint: PatternBlueprint) -> CodebaseGroundTruth:
     """Convert a PatternBlueprint to CodebaseGroundTruth."""
-    codebase_id = f"gen-{blueprint.pattern.value}-{blueprint.complexity.value}-{uuid.uuid4().hex[:8]}"
+    # Deterministic ID: hash full blueprint so same seed always produces same ID
+    content_hash = hashlib.sha256(blueprint.model_dump_json().encode()).hexdigest()[:8]
+    codebase_id = f"gen-{blueprint.pattern.value}-{blueprint.complexity.value}-{content_hash}"
 
     # Build module ground truths
     gt_modules: dict[str, ModuleGroundTruth] = {}

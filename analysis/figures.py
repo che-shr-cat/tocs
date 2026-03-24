@@ -34,6 +34,7 @@ MODEL_COLORS = {
     "openai/gpt-5.3-codex": "#17becf",
     "gemini/gemini-2.5-flash": "#9467bd",
     "gemini/gemini-3.1-pro-preview": "#bcbd22",
+    "gemini/gemini-2.5-pro": "#7f7f7f",
     "gemini/gemini-3-flash-preview": "#8c564b",
 }
 
@@ -46,6 +47,7 @@ MODEL_ORDER = [
     "openai/gpt-5.3-codex",
     "gemini/gemini-2.5-flash",
     "gemini/gemini-3.1-pro-preview",
+    "gemini/gemini-2.5-pro",
     "gemini/gemini-3-flash-preview",
 ]
 
@@ -58,6 +60,7 @@ MODEL_LABELS = {
     "openai/gpt-5.3-codex": "GPT-5.3-Codex",
     "gemini/gemini-2.5-flash": "Gemini 2.5 Flash",
     "gemini/gemini-3.1-pro-preview": "Gemini 3.1 Pro",
+    "gemini/gemini-2.5-pro": "Gemini 2.5 Pro",
     "gemini/gemini-3-flash-preview": "Gemini 3 Flash",
 }
 
@@ -67,6 +70,7 @@ LLM_MODELS = {
     "openai/gpt-5.3-codex",
     "gemini/gemini-2.5-flash",
     "gemini/gemini-3.1-pro-preview",
+    "gemini/gemini-2.5-pro",
     "gemini/gemini-3-flash-preview",
 }
 

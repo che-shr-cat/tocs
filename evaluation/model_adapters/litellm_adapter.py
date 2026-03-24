@@ -74,6 +74,14 @@ class LiteLLMAdapter(BaseAdapter):
 
         response = completion(**kwargs)
 
+        # Track token usage
+        if hasattr(response, "usage") and response.usage:
+            u = response.usage
+            self._token_usage["input_tokens"] += getattr(u, "prompt_tokens", 0) or 0
+            self._token_usage["output_tokens"] += getattr(u, "completion_tokens", 0) or 0
+            self._token_usage["total_tokens"] += getattr(u, "total_tokens", 0) or 0
+            self._token_usage["api_calls"] += 1
+
         choice = response.choices[0]
         msg = choice.message
         content = msg.content

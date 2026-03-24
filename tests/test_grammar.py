@@ -445,3 +445,277 @@ class TestMediumDeterminism:
         assert len(stage_counts) >= 2, (
             f"All 20 seeds produced the same stage count: {stage_counts}"
         )
+
+
+# ======================================================================
+# Large blueprint tests
+# ======================================================================
+
+
+@pytest.fixture
+def large_blueprint() -> PatternBlueprint:
+    """Generate a large pipeline blueprint with fixed seed."""
+    return PipelineTemplate().generate(ComplexityTier.LARGE, seed=42)
+
+
+class TestLargeBlueprint:
+    def test_metadata(self, large_blueprint: PatternBlueprint) -> None:
+        assert large_blueprint.pattern == ArchPattern.PIPELINE
+        assert large_blueprint.complexity == ComplexityTier.LARGE
+        assert large_blueprint.package_name
+
+    def test_module_count(self, large_blueprint: PatternBlueprint) -> None:
+        count = len(large_blueprint.modules)
+        assert 44 <= count <= 60, f"Large blueprint has {count} modules"
+
+    def test_edge_count(self, large_blueprint: PatternBlueprint) -> None:
+        count = len(large_blueprint.dependency_edges)
+        assert 120 <= count <= 170, f"Large blueprint has {count} edges"
+
+    def test_all_four_edge_types_present(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        types = {etype for _, _, etype in large_blueprint.dependency_edges}
+        assert "IMPORTS" in types
+        assert "CALLS_API" in types
+        assert "DATA_FLOWS_TO" in types
+        assert "REGISTRY_WIRES" in types
+
+    def test_has_subdirectories(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        pkg = large_blueprint.package_name
+        dirs = set()
+        for fp in large_blueprint.modules:
+            parts = fp.split("/")
+            if len(parts) > 2:
+                dirs.add(parts[1])
+        assert "stages" in dirs
+        assert "adapters" in dirs
+        assert "middleware" in dirs
+        assert "utils" in dirs
+        assert "legacy" in dirs
+        assert "validators" in dirs, "Large blueprint must have validators/"
+        assert "hooks" in dirs, "Large blueprint must have hooks/"
+        assert "serializers" in dirs, "Large blueprint must have serializers/"
+
+    def test_has_required_roles(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        roles = {m.role for m in large_blueprint.modules.values()}
+        assert "orchestrator" in roles
+        assert "stage" in roles
+        assert "data_model" in roles
+        assert "config" in roles
+        assert "base" in roles
+        assert "registry" in roles
+        assert "adapter" in roles
+        assert "middleware" in roles
+        assert "utils" in roles
+        assert "distractor" in roles
+        assert "entry_point" in roles
+        # New roles for large
+        assert "validator" in roles
+        assert "hook" in roles
+        assert "serializer" in roles
+        assert "types" in roles
+        assert "factory" in roles
+
+    def test_stage_count(self, large_blueprint: PatternBlueprint) -> None:
+        stages = [m for m in large_blueprint.modules.values() if m.role == "stage"]
+        assert len(stages) == 8, f"Large blueprint has {len(stages)} stages (expected 8)"
+
+    def test_stage_ordering(self, large_blueprint: PatternBlueprint) -> None:
+        stages = [m for m in large_blueprint.modules.values() if m.role == "stage"]
+        orders = sorted(s.order for s in stages if s.order is not None)
+        assert orders == list(range(1, len(stages) + 1))
+
+    def test_neutral_naming(self, large_blueprint: PatternBlueprint) -> None:
+        """Stage, adapter, middleware, validator, hook, serializer use neutral names."""
+        neutral_roles = {"stage", "adapter", "middleware", "validator", "hook", "serializer"}
+        for m in large_blueprint.modules.values():
+            if m.role in neutral_roles:
+                filename = m.filepath.split("/")[-1]
+                assert filename.startswith("mod_"), (
+                    f"{m.filepath} doesn't use neutral naming"
+                )
+
+    def test_stages_import_base_not_each_other(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        base_path = next(
+            m.filepath for m in large_blueprint.modules.values()
+            if m.role == "base"
+        )
+        stage_paths = {
+            m.filepath for m in large_blueprint.modules.values()
+            if m.role == "stage"
+        }
+        for m in large_blueprint.modules.values():
+            if m.role == "stage":
+                assert base_path in m.imports_from
+                other_stages = stage_paths - {m.filepath}
+                assert not other_stages.intersection(m.imports_from)
+
+    def test_stages_call_validators(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        """Stages should have CALLS_API edges to validators."""
+        validator_paths = {
+            m.filepath for m in large_blueprint.modules.values()
+            if m.role == "validator"
+        }
+        stage_to_validator_calls = [
+            (src, tgt) for src, tgt, etype in large_blueprint.dependency_edges
+            if etype == "CALLS_API" and tgt in validator_paths
+        ]
+        assert len(stage_to_validator_calls) > 0, "No stages call validators"
+
+    def test_runner_calls_hooks(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        """Runner should have CALLS_API edges to hooks."""
+        hook_paths = {
+            m.filepath for m in large_blueprint.modules.values()
+            if m.role == "hook"
+        }
+        runner_path = next(
+            m.filepath for m in large_blueprint.modules.values()
+            if m.role == "orchestrator"
+        )
+        hook_calls = [
+            tgt for src, tgt, etype in large_blueprint.dependency_edges
+            if src == runner_path and etype == "CALLS_API" and tgt in hook_paths
+        ]
+        assert len(hook_calls) == len(hook_paths), (
+            f"Runner calls {len(hook_calls)} hooks, expected {len(hook_paths)}"
+        )
+
+    def test_factory_does_not_import_stages(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        """Factory must go through registry, not import stages directly."""
+        factory_path = next(
+            m.filepath for m in large_blueprint.modules.values()
+            if m.role == "factory"
+        )
+        stage_paths = {
+            m.filepath for m in large_blueprint.modules.values()
+            if m.role == "stage"
+        }
+        factory_imports = set(large_blueprint.modules[factory_path].imports_from)
+        assert not factory_imports.intersection(stage_paths), (
+            "Factory imports stages directly (should go through registry)"
+        )
+
+    def test_registry_wires_to_all_stages(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        stage_paths = {
+            m.filepath for m in large_blueprint.modules.values()
+            if m.role == "stage"
+        }
+        wired = {
+            tgt for _, tgt, etype in large_blueprint.dependency_edges
+            if etype == "REGISTRY_WIRES"
+        }
+        assert stage_paths.issubset(wired)
+
+    def test_distractors_have_no_incoming_edges(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        distractor_paths = {
+            m.filepath for m in large_blueprint.modules.values()
+            if m.role == "distractor"
+        }
+        for _, tgt, _ in large_blueprint.dependency_edges:
+            assert tgt not in distractor_paths
+
+    def test_more_distractors_than_medium(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        """Large tier should have more distractor files."""
+        distractors = [
+            m for m in large_blueprint.modules.values() if m.role == "distractor"
+        ]
+        assert len(distractors) >= 4, f"Only {len(distractors)} distractors"
+
+    def test_edges_reference_known_modules(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        for src, tgt, etype in large_blueprint.dependency_edges:
+            assert src in large_blueprint.modules, (
+                f"Edge source {src} not in modules"
+            )
+            assert tgt in large_blueprint.modules, (
+                f"Edge target {tgt} not in modules"
+            )
+
+
+class TestLargeInvariants:
+    def test_invariant_count(self, large_blueprint: PatternBlueprint) -> None:
+        count = len(large_blueprint.invariants)
+        assert 20 <= count <= 30, f"Large blueprint has {count} invariants"
+
+    def test_invariant_types_covered(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        types = {inv.type for inv in large_blueprint.invariants}
+        assert InvariantType.DATAFLOW in types
+        assert InvariantType.INTERFACE in types
+        assert InvariantType.BOUNDARY in types
+        assert InvariantType.INVARIANT in types
+        assert InvariantType.PURPOSE in types
+
+    def test_invariant_ids_unique(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        ids = [inv.id for inv in large_blueprint.invariants]
+        assert len(ids) == len(set(ids))
+
+    def test_invariant_modules_exist(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        for inv in large_blueprint.invariants:
+            for mod in inv.involved_modules:
+                assert mod in large_blueprint.modules, (
+                    f"Invariant {inv.id} references unknown module {mod}"
+                )
+
+    def test_more_invariants_than_medium(
+        self, large_blueprint: PatternBlueprint,
+        medium_blueprint: PatternBlueprint,
+    ) -> None:
+        assert len(large_blueprint.invariants) > len(medium_blueprint.invariants)
+
+
+class TestLargeRationales:
+    def test_has_rationales(self, large_blueprint: PatternBlueprint) -> None:
+        assert len(large_blueprint.design_rationales) >= 7
+
+    def test_rationale_modules_exist(
+        self, large_blueprint: PatternBlueprint
+    ) -> None:
+        for r in large_blueprint.design_rationales:
+            for mod in r.affected_modules:
+                assert mod in large_blueprint.modules, (
+                    f"Rationale {r.id} references unknown module {mod}"
+                )
+
+
+class TestLargeDeterminism:
+    def test_same_seed_same_blueprint(self) -> None:
+        t = PipelineTemplate()
+        b1 = t.generate(ComplexityTier.LARGE, seed=42)
+        b2 = t.generate(ComplexityTier.LARGE, seed=42)
+        assert b1.domain == b2.domain
+        assert set(b1.modules.keys()) == set(b2.modules.keys())
+        assert len(b1.dependency_edges) == len(b2.dependency_edges)
+
+    def test_different_seeds_produce_different_domains(self) -> None:
+        t = PipelineTemplate()
+        domains = set()
+        for seed in range(20):
+            b = t.generate(ComplexityTier.LARGE, seed=seed)
+            domains.add(b.domain)
+        assert len(domains) >= 2

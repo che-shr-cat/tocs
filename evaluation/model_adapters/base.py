@@ -108,6 +108,7 @@ class AdapterResult:
     maps: list[CognitiveMap] = field(default_factory=list)
     action_log: list[ActionResult] = field(default_factory=list)
     conversation: list[dict] = field(default_factory=list)
+    token_usage: dict = field(default_factory=dict)
 
 
 # ── Base adapter ────────────────────────────────────────────────────
@@ -139,6 +140,7 @@ class BaseAdapter(ABC):
         self._action_prompt = action_prompt or load_prompt("action.txt")
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self._token_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "api_calls": 0}
 
     @abstractmethod
     def _call_model(self, messages: list[dict], system: str) -> str:
@@ -381,6 +383,7 @@ class BaseAdapter(ABC):
             maps=maps,
             action_log=env.action_log,
             conversation=messages,
+            token_usage=dict(self._token_usage),
         )
 
 

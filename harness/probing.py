@@ -252,15 +252,29 @@ def _try_parse(text: str, step: int) -> ParseResult:
             inv["description"] = "(truncated)"
 
     # Fix bare-string params: "stage_name" → {"name": "stage_name", ...}
+    # Also strip edges with invalid types (models sometimes invent types)
+    _valid_edge_types = {"IMPORTS", "CALLS_API", "DATA_FLOWS_TO", "REGISTRY_WIRES"}
     for comp in data.get("components", {}).values():
         if not isinstance(comp, dict):
             continue
+        # Filter out edges with invalid types
+        if "edges" in comp:
+            comp["edges"] = [
+                e for e in comp["edges"]
+                if isinstance(e, dict) and e.get("type") in _valid_edge_types
+            ]
         for exp in comp.get("exports", []):
             if not isinstance(exp, dict):
                 continue
             sig = exp.get("signature")
+            if sig is None:
+                exp["signature"] = {"params": [], "return_type": ""}
+                sig = exp["signature"]
             if not isinstance(sig, dict):
                 continue
+            # Fix null return_type → ""
+            if sig.get("return_type") is None:
+                sig["return_type"] = ""
             params = sig.get("params", [])
             for i, p in enumerate(params):
                 if isinstance(p, str):
@@ -269,6 +283,10 @@ def _try_parse(text: str, step: int) -> ParseResult:
                         "type_hint": "",
                         "has_default": False,
                     }
+                elif isinstance(p, dict):
+                    # Fix null type_hint → ""
+                    if p.get("type_hint") is None:
+                        p["type_hint"] = ""
 
     try:
         cmap = CognitiveMap.model_validate(data)

@@ -1,0 +1,2634 @@
+{
+  "codebase_id": "gen-pipeline-large-7686982f",
+  "pattern": "pipeline",
+  "complexity": "large",
+  "language": "python",
+  "modules": {
+    "text_processor/__init__.py": {
+      "filepath": "text_processor/__init__.py",
+      "purpose": "Package root for nlp pipeline that reads documents",
+      "exports": [],
+      "edges": []
+    },
+    "text_processor/models.py": {
+      "filepath": "text_processor/models.py",
+      "purpose": "Defines all data types that flow through the pipeline stages",
+      "exports": [
+        "RawDocument",
+        "TokenizedDocument",
+        "NormalizedDocument",
+        "FilteredDocument",
+        "LemmatizedDocument",
+        "VectorizedDocument",
+        "ClassifiedDocument",
+        "SummarizedDocument",
+        "IndexedDocument"
+      ],
+      "edges": []
+    },
+    "text_processor/types.py": {
+      "filepath": "text_processor/types.py",
+      "purpose": "Protocol definitions and type aliases shared across the pipeline",
+      "exports": [
+        "StageProtocol",
+        "ValidatorProtocol",
+        "HookProtocol"
+      ],
+      "edges": []
+    },
+    "text_processor/base.py": {
+      "filepath": "text_processor/base.py",
+      "purpose": "Abstract base class (StageBase) that all pipeline stages implement",
+      "exports": [
+        "StageBase"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/types.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/config.py": {
+      "filepath": "text_processor/config.py",
+      "purpose": "Pipeline configuration: batch size, paths, feature flags, stage ordering",
+      "exports": [
+        "PipelineConfig"
+      ],
+      "edges": []
+    },
+    "text_processor/exceptions.py": {
+      "filepath": "text_processor/exceptions.py",
+      "purpose": "Custom exception hierarchy for pipeline errors",
+      "exports": [
+        "PipelineError",
+        "StageError",
+        "ValidationError"
+      ],
+      "edges": []
+    },
+    "text_processor/registry.py": {
+      "filepath": "text_processor/registry.py",
+      "purpose": "Stage registry: maps stage names to classes, loaded at runtime via importlib",
+      "exports": [
+        "StageRegistry",
+        "get_registry"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/config.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_a.py",
+          "type": "REGISTRY_WIRES"
+        },
+        {
+          "target": "text_processor/stages/mod_b.py",
+          "type": "REGISTRY_WIRES"
+        },
+        {
+          "target": "text_processor/stages/mod_c.py",
+          "type": "REGISTRY_WIRES"
+        },
+        {
+          "target": "text_processor/stages/mod_d.py",
+          "type": "REGISTRY_WIRES"
+        },
+        {
+          "target": "text_processor/stages/mod_e.py",
+          "type": "REGISTRY_WIRES"
+        },
+        {
+          "target": "text_processor/stages/mod_f.py",
+          "type": "REGISTRY_WIRES"
+        },
+        {
+          "target": "text_processor/stages/mod_g.py",
+          "type": "REGISTRY_WIRES"
+        },
+        {
+          "target": "text_processor/stages/mod_h.py",
+          "type": "REGISTRY_WIRES"
+        }
+      ]
+    },
+    "text_processor/stages/__init__.py": {
+      "filepath": "text_processor/stages/__init__.py",
+      "purpose": "Stages subpackage init — re-exports stage classes",
+      "exports": [],
+      "edges": []
+    },
+    "text_processor/stages/mod_a.py": {
+      "filepath": "text_processor/stages/mod_a.py",
+      "purpose": "Splits text into sentences and tokens with position offsets",
+      "exports": [
+        "tokenize_documents"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/exceptions.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_b.py",
+          "type": "DATA_FLOWS_TO"
+        },
+        {
+          "target": "text_processor/validators/mod_o.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/utils/helpers.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/stages/mod_b.py": {
+      "filepath": "text_processor/stages/mod_b.py",
+      "purpose": "Lowercases, applies Unicode normalization, strips accents",
+      "exports": [
+        "normalize_documents"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/exceptions.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_c.py",
+          "type": "DATA_FLOWS_TO"
+        },
+        {
+          "target": "text_processor/validators/mod_o.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/utils/helpers.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/stages/mod_c.py": {
+      "filepath": "text_processor/stages/mod_c.py",
+      "purpose": "Removes stopwords and high-frequency noise tokens",
+      "exports": [
+        "remove_stopwords"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/exceptions.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_d.py",
+          "type": "DATA_FLOWS_TO"
+        },
+        {
+          "target": "text_processor/validators/mod_p.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/utils/helpers.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/stages/mod_d.py": {
+      "filepath": "text_processor/stages/mod_d.py",
+      "purpose": "Reduces tokens to lemma forms using morphological analysis",
+      "exports": [
+        "lemmatize_documents"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/exceptions.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_e.py",
+          "type": "DATA_FLOWS_TO"
+        },
+        {
+          "target": "text_processor/validators/mod_p.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/utils/helpers.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/stages/mod_e.py": {
+      "filepath": "text_processor/stages/mod_e.py",
+      "purpose": "Converts token sequences to TF-IDF or embedding vectors",
+      "exports": [
+        "vectorize_documents"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/exceptions.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_f.py",
+          "type": "DATA_FLOWS_TO"
+        },
+        {
+          "target": "text_processor/validators/mod_q.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/utils/helpers.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/stages/mod_f.py": {
+      "filepath": "text_processor/stages/mod_f.py",
+      "purpose": "Assigns topic and category labels using trained classifier",
+      "exports": [
+        "classify_documents"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/exceptions.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_g.py",
+          "type": "DATA_FLOWS_TO"
+        },
+        {
+          "target": "text_processor/validators/mod_q.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/utils/helpers.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/stages/mod_g.py": {
+      "filepath": "text_processor/stages/mod_g.py",
+      "purpose": "Generates extractive summaries from classified documents",
+      "exports": [
+        "summarize_documents"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/exceptions.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_h.py",
+          "type": "DATA_FLOWS_TO"
+        },
+        {
+          "target": "text_processor/validators/mod_q.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/utils/helpers.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/stages/mod_h.py": {
+      "filepath": "text_processor/stages/mod_h.py",
+      "purpose": "Builds inverted index entries for search and retrieval",
+      "exports": [
+        "index_documents"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/exceptions.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/validators/mod_q.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/utils/helpers.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/adapters/__init__.py": {
+      "filepath": "text_processor/adapters/__init__.py",
+      "purpose": "Adapters subpackage init",
+      "exports": [],
+      "edges": []
+    },
+    "text_processor/adapters/mod_i.py": {
+      "filepath": "text_processor/adapters/mod_i.py",
+      "purpose": "Adapter providing external interface for stage_tokenize stage",
+      "exports": [
+        "adapt_tokenize_documents"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_a.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_a.py",
+          "type": "CALLS_API"
+        }
+      ]
+    },
+    "text_processor/adapters/mod_j.py": {
+      "filepath": "text_processor/adapters/mod_j.py",
+      "purpose": "Adapter providing external interface for stage_stopwords stage",
+      "exports": [
+        "adapt_remove_stopwords"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_c.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_c.py",
+          "type": "CALLS_API"
+        }
+      ]
+    },
+    "text_processor/adapters/mod_k.py": {
+      "filepath": "text_processor/adapters/mod_k.py",
+      "purpose": "Adapter providing external interface for stage_classify stage",
+      "exports": [
+        "adapt_classify_documents"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_f.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/stages/mod_f.py",
+          "type": "CALLS_API"
+        }
+      ]
+    },
+    "text_processor/middleware/__init__.py": {
+      "filepath": "text_processor/middleware/__init__.py",
+      "purpose": "Middleware subpackage init",
+      "exports": [],
+      "edges": []
+    },
+    "text_processor/middleware/mod_l.py": {
+      "filepath": "text_processor/middleware/mod_l.py",
+      "purpose": "Middleware: logging wrapper for pipeline stages",
+      "exports": [
+        "logging_middleware"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/middleware/mod_m.py": {
+      "filepath": "text_processor/middleware/mod_m.py",
+      "purpose": "Middleware: retry wrapper for pipeline stages",
+      "exports": [
+        "retry_middleware"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/middleware/mod_n.py": {
+      "filepath": "text_processor/middleware/mod_n.py",
+      "purpose": "Middleware: metrics wrapper for pipeline stages",
+      "exports": [
+        "metrics_middleware"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/validators/__init__.py": {
+      "filepath": "text_processor/validators/__init__.py",
+      "purpose": "Validators subpackage init — input validation modules",
+      "exports": [],
+      "edges": []
+    },
+    "text_processor/validators/mod_o.py": {
+      "filepath": "text_processor/validators/mod_o.py",
+      "purpose": "Validator: schema validation for pipeline input data",
+      "exports": [
+        "validate_schema"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/exceptions.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/types.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/validators/mod_p.py": {
+      "filepath": "text_processor/validators/mod_p.py",
+      "purpose": "Validator: integrity validation for pipeline input data",
+      "exports": [
+        "validate_integrity"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/exceptions.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/types.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/validators/mod_q.py": {
+      "filepath": "text_processor/validators/mod_q.py",
+      "purpose": "Validator: range validation for pipeline input data",
+      "exports": [
+        "validate_range"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/exceptions.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/types.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/hooks/__init__.py": {
+      "filepath": "text_processor/hooks/__init__.py",
+      "purpose": "Hooks subpackage init — lifecycle hook modules",
+      "exports": [],
+      "edges": []
+    },
+    "text_processor/hooks/mod_r.py": {
+      "filepath": "text_processor/hooks/mod_r.py",
+      "purpose": "Lifecycle hook: pre_pipeline — executed by the pipeline runner",
+      "exports": [
+        "pre_pipeline_hook"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/config.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/hooks/mod_s.py": {
+      "filepath": "text_processor/hooks/mod_s.py",
+      "purpose": "Lifecycle hook: post_pipeline — executed by the pipeline runner",
+      "exports": [
+        "post_pipeline_hook"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/config.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/hooks/mod_t.py": {
+      "filepath": "text_processor/hooks/mod_t.py",
+      "purpose": "Lifecycle hook: on_error — executed by the pipeline runner",
+      "exports": [
+        "on_error_hook"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/config.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/serializers/__init__.py": {
+      "filepath": "text_processor/serializers/__init__.py",
+      "purpose": "Serializers subpackage init — output serialization modules",
+      "exports": [],
+      "edges": []
+    },
+    "text_processor/serializers/mod_u.py": {
+      "filepath": "text_processor/serializers/mod_u.py",
+      "purpose": "Serializer: json serializer output format",
+      "exports": [
+        "serialize_json"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/utils/formatters.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/serializers/mod_v.py": {
+      "filepath": "text_processor/serializers/mod_v.py",
+      "purpose": "Serializer: csv serializer output format",
+      "exports": [
+        "serialize_csv"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/utils/formatters.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/utils/__init__.py": {
+      "filepath": "text_processor/utils/__init__.py",
+      "purpose": "Utils subpackage init",
+      "exports": [],
+      "edges": []
+    },
+    "text_processor/utils/helpers.py": {
+      "filepath": "text_processor/utils/helpers.py",
+      "purpose": "Shared utilities: logging setup, timing decorator, error helpers",
+      "exports": [
+        "setup_logging",
+        "log_stage",
+        "timed"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/config.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/utils/formatters.py": {
+      "filepath": "text_processor/utils/formatters.py",
+      "purpose": "Output formatting: JSON, CSV, table formatters",
+      "exports": [
+        "format_json",
+        "format_csv",
+        "format_table"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/legacy/__init__.py": {
+      "filepath": "text_processor/legacy/__init__.py",
+      "purpose": "Legacy subpackage init (deprecated code kept for reference)",
+      "exports": [],
+      "edges": []
+    },
+    "text_processor/legacy/old_pipeline.py": {
+      "filepath": "text_processor/legacy/old_pipeline.py",
+      "purpose": "Deprecated: old monolithic pipeline (kept for reference, unused)",
+      "exports": [],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/legacy/compat.py": {
+      "filepath": "text_processor/legacy/compat.py",
+      "purpose": "Compatibility shims for legacy pipeline format",
+      "exports": [
+        "convert_legacy_format"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/legacy/deprecated_tests.py": {
+      "filepath": "text_processor/legacy/deprecated_tests.py",
+      "purpose": "Deprecated test file from the old pipeline — no longer runs",
+      "exports": [],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/legacy/migration_v1.py": {
+      "filepath": "text_processor/legacy/migration_v1.py",
+      "purpose": "One-time migration script from pipeline v0 to v1 format",
+      "exports": [
+        "migrate_v0_to_v1"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        }
+      ]
+    },
+    "text_processor/runner.py": {
+      "filepath": "text_processor/runner.py",
+      "purpose": "Pipeline runner: loads config, resolves stages via registry, executes pipeline with middleware and lifecycle hooks",
+      "exports": [
+        "run_pipeline"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/config.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/registry.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/models.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/base.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/registry.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/middleware/mod_l.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/middleware/mod_l.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/middleware/mod_m.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/middleware/mod_m.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/middleware/mod_n.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/middleware/mod_n.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/hooks/mod_r.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/hooks/mod_r.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/hooks/mod_s.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/hooks/mod_s.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/hooks/mod_t.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/hooks/mod_t.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/stages/mod_a.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/stages/mod_b.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/stages/mod_c.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/stages/mod_d.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/stages/mod_e.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/stages/mod_f.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/stages/mod_g.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/stages/mod_h.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/serializers/mod_u.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/serializers/mod_u.py",
+          "type": "CALLS_API"
+        }
+      ]
+    },
+    "text_processor/pipeline_factory.py": {
+      "filepath": "text_processor/pipeline_factory.py",
+      "purpose": "Pipeline factory: constructs configured pipeline instances with middleware and hooks wired together",
+      "exports": [
+        "create_pipeline",
+        "PipelineBuilder"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/config.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/registry.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/runner.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/registry.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/runner.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/middleware/mod_l.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/middleware/mod_l.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/middleware/mod_m.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/middleware/mod_m.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/middleware/mod_n.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/middleware/mod_n.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/hooks/mod_r.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/hooks/mod_r.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/hooks/mod_s.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/hooks/mod_s.py",
+          "type": "CALLS_API"
+        },
+        {
+          "target": "text_processor/hooks/mod_t.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/hooks/mod_t.py",
+          "type": "CALLS_API"
+        }
+      ]
+    },
+    "text_processor/cli.py": {
+      "filepath": "text_processor/cli.py",
+      "purpose": "CLI entry point: argument parsing and pipeline invocation via factory",
+      "exports": [
+        "main"
+      ],
+      "edges": [
+        {
+          "target": "text_processor/pipeline_factory.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/config.py",
+          "type": "IMPORTS"
+        },
+        {
+          "target": "text_processor/pipeline_factory.py",
+          "type": "CALLS_API"
+        }
+      ]
+    }
+  },
+  "invariants": [
+    {
+      "id": "inv-001",
+      "type": "DATAFLOW",
+      "description": "stage_tokenize must produce TokenizedDocument before stage_normalize can consume it as TokenizedDocument",
+      "structured": {
+        "type": "VALIDATION_CHAIN",
+        "src": "text_processor/stages/mod_a.py",
+        "dst": "text_processor/stages/mod_b.py"
+      },
+      "involved_modules": [
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py"
+      ],
+      "rationale": "Pipeline stages form a linear data flow; each stage's output type is the next stage's input type, enforcing transformation order",
+      "evidence_types": [
+        "structural",
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py"
+      ]
+    },
+    {
+      "id": "inv-002",
+      "type": "DATAFLOW",
+      "description": "stage_normalize must produce NormalizedDocument before stage_stopwords can consume it as NormalizedDocument",
+      "structured": {
+        "type": "VALIDATION_CHAIN",
+        "src": "text_processor/stages/mod_b.py",
+        "dst": "text_processor/stages/mod_c.py"
+      },
+      "involved_modules": [
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py"
+      ],
+      "rationale": "Pipeline stages form a linear data flow; each stage's output type is the next stage's input type, enforcing transformation order",
+      "evidence_types": [
+        "structural",
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py"
+      ]
+    },
+    {
+      "id": "inv-003",
+      "type": "DATAFLOW",
+      "description": "stage_stopwords must produce FilteredDocument before stage_lemmatize can consume it as FilteredDocument",
+      "structured": {
+        "type": "VALIDATION_CHAIN",
+        "src": "text_processor/stages/mod_c.py",
+        "dst": "text_processor/stages/mod_d.py"
+      },
+      "involved_modules": [
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py"
+      ],
+      "rationale": "Pipeline stages form a linear data flow; each stage's output type is the next stage's input type, enforcing transformation order",
+      "evidence_types": [
+        "structural",
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py"
+      ]
+    },
+    {
+      "id": "inv-004",
+      "type": "DATAFLOW",
+      "description": "stage_lemmatize must produce LemmatizedDocument before stage_vectorize can consume it as LemmatizedDocument",
+      "structured": {
+        "type": "VALIDATION_CHAIN",
+        "src": "text_processor/stages/mod_d.py",
+        "dst": "text_processor/stages/mod_e.py"
+      },
+      "involved_modules": [
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py"
+      ],
+      "rationale": "Pipeline stages form a linear data flow; each stage's output type is the next stage's input type, enforcing transformation order",
+      "evidence_types": [
+        "structural",
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py"
+      ]
+    },
+    {
+      "id": "inv-005",
+      "type": "DATAFLOW",
+      "description": "stage_vectorize must produce VectorizedDocument before stage_classify can consume it as VectorizedDocument",
+      "structured": {
+        "type": "VALIDATION_CHAIN",
+        "src": "text_processor/stages/mod_e.py",
+        "dst": "text_processor/stages/mod_f.py"
+      },
+      "involved_modules": [
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py"
+      ],
+      "rationale": "Pipeline stages form a linear data flow; each stage's output type is the next stage's input type, enforcing transformation order",
+      "evidence_types": [
+        "structural",
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py"
+      ]
+    },
+    {
+      "id": "inv-006",
+      "type": "DATAFLOW",
+      "description": "stage_classify must produce ClassifiedDocument before stage_summarize can consume it as ClassifiedDocument",
+      "structured": {
+        "type": "VALIDATION_CHAIN",
+        "src": "text_processor/stages/mod_f.py",
+        "dst": "text_processor/stages/mod_g.py"
+      },
+      "involved_modules": [
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py"
+      ],
+      "rationale": "Pipeline stages form a linear data flow; each stage's output type is the next stage's input type, enforcing transformation order",
+      "evidence_types": [
+        "structural",
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py"
+      ]
+    },
+    {
+      "id": "inv-007",
+      "type": "DATAFLOW",
+      "description": "stage_summarize must produce SummarizedDocument before stage_index can consume it as SummarizedDocument",
+      "structured": {
+        "type": "VALIDATION_CHAIN",
+        "src": "text_processor/stages/mod_g.py",
+        "dst": "text_processor/stages/mod_h.py"
+      },
+      "involved_modules": [
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "rationale": "Pipeline stages form a linear data flow; each stage's output type is the next stage's input type, enforcing transformation order",
+      "evidence_types": [
+        "structural",
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ]
+    },
+    {
+      "id": "inv-008",
+      "type": "INTERFACE",
+      "description": "Every processing stage inherits from StageBase and implements process(data, config) -> list[OutputType]",
+      "structured": {
+        "type": "INTERFACE_ONLY",
+        "via": "text_processor/base.py"
+      },
+      "involved_modules": [
+        "text_processor/base.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "rationale": "A uniform stage interface enables the registry to load stages generically and allows middleware to wrap any stage",
+      "evidence_types": [
+        "structural"
+      ],
+      "evidence_locations": [
+        "text_processor/base.py",
+        "text_processor/stages/mod_a.py"
+      ]
+    },
+    {
+      "id": "inv-009",
+      "type": "BOUNDARY",
+      "description": "No stage module may import from any other stage module (stages communicate only via data passed by the runner)",
+      "structured": {
+        "type": "FORBIDDEN_EDGE",
+        "src": "text_processor/stages/mod_a.py",
+        "pattern": "no_import"
+      },
+      "involved_modules": [
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "rationale": "Direct inter-stage imports would create hidden ordering dependencies and break stage isolation",
+      "evidence_types": [
+        "structural",
+        "test"
+      ],
+      "evidence_locations": [
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py"
+      ]
+    },
+    {
+      "id": "inv-010",
+      "type": "BOUNDARY",
+      "description": "No stage, adapter, or middleware may import from runner.py (no reverse dependency on orchestrator)",
+      "structured": {
+        "type": "FORBIDDEN_EDGE",
+        "src": "text_processor/runner.py",
+        "pattern": "no_import"
+      },
+      "involved_modules": [
+        "text_processor/runner.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py",
+        "text_processor/adapters/mod_i.py",
+        "text_processor/adapters/mod_j.py",
+        "text_processor/adapters/mod_k.py",
+        "text_processor/middleware/mod_l.py",
+        "text_processor/middleware/mod_m.py",
+        "text_processor/middleware/mod_n.py"
+      ],
+      "rationale": "The orchestrator depends on stages, not the other way around; circular dependencies would make stages untestable",
+      "evidence_types": [
+        "structural",
+        "test"
+      ],
+      "evidence_locations": [
+        "text_processor/runner.py",
+        "text_processor/stages/mod_a.py"
+      ]
+    },
+    {
+      "id": "inv-011",
+      "type": "BOUNDARY",
+      "description": "Adapter modules must not import from middleware modules (layer boundary: adapters wrap stages, middleware wraps execution)",
+      "structured": {
+        "type": "FORBIDDEN_EDGE",
+        "src": "text_processor/adapters/mod_i.py",
+        "pattern": "no_import"
+      },
+      "involved_modules": [
+        "text_processor/adapters/mod_i.py",
+        "text_processor/adapters/mod_j.py",
+        "text_processor/adapters/mod_k.py",
+        "text_processor/middleware/mod_l.py",
+        "text_processor/middleware/mod_m.py",
+        "text_processor/middleware/mod_n.py"
+      ],
+      "rationale": "Adapters and middleware operate at different abstraction layers; cross-layer imports would blur responsibilities",
+      "evidence_types": [
+        "structural",
+        "test"
+      ],
+      "evidence_locations": [
+        "text_processor/adapters/mod_i.py",
+        "text_processor/adapters/mod_j.py"
+      ]
+    },
+    {
+      "id": "inv-012",
+      "type": "BOUNDARY",
+      "description": "Utility modules must not import from each other (no circular dependencies in utils/)",
+      "structured": {
+        "type": "FORBIDDEN_EDGE",
+        "src": "text_processor/utils/helpers.py",
+        "dst": "text_processor/utils/formatters.py"
+      },
+      "involved_modules": [
+        "text_processor/utils/helpers.py",
+        "text_processor/utils/formatters.py"
+      ],
+      "rationale": "Utility modules should be leaf dependencies; mutual imports would create import cycles and complicate testing",
+      "evidence_types": [
+        "structural",
+        "test"
+      ],
+      "evidence_locations": [
+        "text_processor/utils/helpers.py",
+        "text_processor/utils/formatters.py"
+      ]
+    },
+    {
+      "id": "inv-013",
+      "type": "BOUNDARY",
+      "description": "Validator modules must not import from stage modules (validators are called BY stages, not the reverse)",
+      "structured": {
+        "type": "FORBIDDEN_EDGE",
+        "src": "text_processor/validators/mod_o.py",
+        "pattern": "no_import"
+      },
+      "involved_modules": [
+        "text_processor/validators/mod_o.py",
+        "text_processor/validators/mod_p.py",
+        "text_processor/validators/mod_q.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "rationale": "Validators are generic data checks; importing stage-specific logic would create circular dependencies and prevent reuse",
+      "evidence_types": [
+        "structural",
+        "test"
+      ],
+      "evidence_locations": [
+        "text_processor/validators/mod_o.py",
+        "text_processor/validators/mod_p.py"
+      ]
+    },
+    {
+      "id": "inv-014",
+      "type": "BOUNDARY",
+      "description": "Hook modules must not import from stage modules (hooks are lifecycle concerns, not data processing)",
+      "structured": {
+        "type": "FORBIDDEN_EDGE",
+        "src": "text_processor/hooks/mod_r.py",
+        "pattern": "no_import"
+      },
+      "involved_modules": [
+        "text_processor/hooks/mod_r.py",
+        "text_processor/hooks/mod_s.py",
+        "text_processor/hooks/mod_t.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "rationale": "Hooks handle pipeline lifecycle (setup, teardown, error handling); coupling them to stage internals would break separation of concerns",
+      "evidence_types": [
+        "structural",
+        "test"
+      ],
+      "evidence_locations": [
+        "text_processor/hooks/mod_r.py",
+        "text_processor/hooks/mod_s.py"
+      ]
+    },
+    {
+      "id": "inv-015",
+      "type": "BOUNDARY",
+      "description": "Serializer modules must not import from stage modules (serializers work on output types only)",
+      "structured": {
+        "type": "FORBIDDEN_EDGE",
+        "src": "text_processor/serializers/mod_u.py",
+        "pattern": "no_import"
+      },
+      "involved_modules": [
+        "text_processor/serializers/mod_u.py",
+        "text_processor/serializers/mod_v.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "rationale": "Serializers handle output formatting; they should depend only on data models and formatters, not on processing logic",
+      "evidence_types": [
+        "structural",
+        "test"
+      ],
+      "evidence_locations": [
+        "text_processor/serializers/mod_u.py",
+        "text_processor/serializers/mod_v.py"
+      ]
+    },
+    {
+      "id": "inv-016",
+      "type": "BOUNDARY",
+      "description": "Pipeline factory must not import stage modules directly (must go through the registry for stage resolution)",
+      "structured": {
+        "type": "FORBIDDEN_EDGE",
+        "src": "text_processor/pipeline_factory.py",
+        "pattern": "no_import"
+      },
+      "involved_modules": [
+        "text_processor/pipeline_factory.py",
+        "text_processor/registry.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "rationale": "The factory should be stage-agnostic; direct stage imports would bypass the registry and hard-code pipeline structure",
+      "evidence_types": [
+        "structural",
+        "test"
+      ],
+      "evidence_locations": [
+        "text_processor/pipeline_factory.py",
+        "text_processor/registry.py"
+      ]
+    },
+    {
+      "id": "inv-017",
+      "type": "BOUNDARY",
+      "description": "Legacy modules are dead code — no active module imports from them",
+      "structured": {
+        "type": "FORBIDDEN_EDGE",
+        "src": "text_processor/legacy/old_pipeline.py",
+        "pattern": "no_import"
+      },
+      "involved_modules": [
+        "text_processor/legacy/old_pipeline.py",
+        "text_processor/legacy/compat.py",
+        "text_processor/legacy/deprecated_tests.py",
+        "text_processor/legacy/migration_v1.py"
+      ],
+      "rationale": "Dead code is kept for reference only, not used at runtime",
+      "evidence_types": [
+        "structural",
+        "test"
+      ],
+      "evidence_locations": [
+        "text_processor/legacy/old_pipeline.py",
+        "text_processor/legacy/compat.py"
+      ]
+    },
+    {
+      "id": "inv-018",
+      "type": "INTERFACE",
+      "description": "Every validator module exports a validate(data, config) function that returns a ValidationResult or raises ValidationError",
+      "structured": {
+        "type": "INTERFACE_ONLY",
+        "via": "text_processor/types.py"
+      },
+      "involved_modules": [
+        "text_processor/types.py",
+        "text_processor/validators/mod_o.py",
+        "text_processor/validators/mod_p.py",
+        "text_processor/validators/mod_q.py"
+      ],
+      "rationale": "A uniform validator interface allows stages to call any validator generically and enables validator composition",
+      "evidence_types": [
+        "structural"
+      ],
+      "evidence_locations": [
+        "text_processor/types.py",
+        "text_processor/validators/mod_o.py"
+      ]
+    },
+    {
+      "id": "inv-019",
+      "type": "INTERFACE",
+      "description": "Every hook module exports an execute(context) function — the runner calls hooks through this uniform interface",
+      "structured": {
+        "type": "INTERFACE_ONLY",
+        "via": "text_processor/types.py"
+      },
+      "involved_modules": [
+        "text_processor/types.py",
+        "text_processor/hooks/mod_r.py",
+        "text_processor/hooks/mod_s.py",
+        "text_processor/hooks/mod_t.py"
+      ],
+      "rationale": "A uniform hook interface lets the runner invoke any hook without type-specific logic",
+      "evidence_types": [
+        "structural"
+      ],
+      "evidence_locations": [
+        "text_processor/types.py",
+        "text_processor/hooks/mod_r.py"
+      ]
+    },
+    {
+      "id": "inv-020",
+      "type": "INVARIANT",
+      "description": "PipelineConfig.batch_size must be respected by all stages and the runner for consistent batch processing",
+      "structured": {
+        "type": "INVARIANT",
+        "pattern": "PipelineConfig.batch_size must be respected by all stages and the runner for consistent batch processing"
+      },
+      "involved_modules": [
+        "text_processor/config.py",
+        "text_processor/runner.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "rationale": "Batch size is a global pipeline property; inconsistent batch handling between stages would cause data loss or duplication",
+      "evidence_types": [
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/config.py",
+        "text_processor/runner.py"
+      ]
+    },
+    {
+      "id": "inv-021",
+      "type": "INVARIANT",
+      "description": "StageRegistry must resolve stages in the order specified by PipelineConfig.stage_order",
+      "structured": {
+        "type": "INVARIANT",
+        "pattern": "StageRegistry must resolve stages in the order specified by PipelineConfig.stage_order"
+      },
+      "involved_modules": [
+        "text_processor/registry.py",
+        "text_processor/config.py",
+        "text_processor/runner.py"
+      ],
+      "rationale": "Config-driven stage ordering is the single source of truth; registry resolution must respect it to maintain pipeline semantics",
+      "evidence_types": [
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/registry.py",
+        "text_processor/config.py"
+      ]
+    },
+    {
+      "id": "inv-022",
+      "type": "INVARIANT",
+      "description": "Pipeline factory must apply all three middleware types (logging, retry, metrics) to ensure complete observability",
+      "structured": {
+        "type": "INVARIANT",
+        "pattern": "Pipeline factory must apply all three middleware types (logging, retry, metrics) to ensure complete observability"
+      },
+      "involved_modules": [
+        "text_processor/pipeline_factory.py",
+        "text_processor/middleware/mod_l.py",
+        "text_processor/middleware/mod_m.py",
+        "text_processor/middleware/mod_n.py"
+      ],
+      "rationale": "Missing middleware would create blind spots in monitoring or leave stages without retry protection",
+      "evidence_types": [
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/pipeline_factory.py",
+        "text_processor/middleware/mod_l.py"
+      ]
+    },
+    {
+      "id": "inv-023",
+      "type": "INVARIANT",
+      "description": "Lifecycle hooks must execute in order: pre_pipeline before stage processing, post_pipeline after, on_error on failure",
+      "structured": {
+        "type": "INVARIANT",
+        "pattern": "Lifecycle hooks must execute in order: pre_pipeline before stage processing, post_pipeline after, on_error on failure"
+      },
+      "involved_modules": [
+        "text_processor/runner.py",
+        "text_processor/hooks/mod_r.py",
+        "text_processor/hooks/mod_s.py",
+        "text_processor/hooks/mod_t.py"
+      ],
+      "rationale": "Incorrect hook ordering would cause setup to run after processing or teardown to be skipped on error",
+      "evidence_types": [
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/runner.py",
+        "text_processor/hooks/mod_r.py"
+      ]
+    },
+    {
+      "id": "inv-024",
+      "type": "DATAFLOW",
+      "description": "Serializer output must consume the final stage's output type — the end-to-end type chain must be consistent",
+      "structured": {
+        "type": "VALIDATION_CHAIN",
+        "src": "text_processor/stages/mod_h.py",
+        "dst": "text_processor/serializers/mod_v.py"
+      },
+      "involved_modules": [
+        "text_processor/stages/mod_h.py",
+        "text_processor/serializers/mod_u.py",
+        "text_processor/serializers/mod_v.py"
+      ],
+      "rationale": "A type mismatch between the last stage and serializer would cause runtime serialization failures",
+      "evidence_types": [
+        "structural",
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/stages/mod_h.py",
+        "text_processor/serializers/mod_u.py"
+      ]
+    },
+    {
+      "id": "inv-025",
+      "type": "PURPOSE",
+      "description": "Each processing stage is a separate module to enforce single responsibility and enable independent testing",
+      "structured": {
+        "type": "PURPOSE",
+        "pattern": "Each processing stage is a separate module to enforce single responsibility and enable independent testing"
+      },
+      "involved_modules": [
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "rationale": "Separating stages allows each to be tested, replaced, or reordered independently; merging stages would couple concerns",
+      "evidence_types": [
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py"
+      ]
+    },
+    {
+      "id": "inv-026",
+      "type": "PURPOSE",
+      "description": "Adapter modules provide a stable external interface for stages that may change their internal implementation",
+      "structured": {
+        "type": "PURPOSE",
+        "pattern": "Adapter modules provide a stable external interface for stages that may change their internal implementation"
+      },
+      "involved_modules": [
+        "text_processor/adapters/mod_i.py",
+        "text_processor/adapters/mod_j.py",
+        "text_processor/adapters/mod_k.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "rationale": "Adapters decouple external consumers from stage internals; stage refactoring doesn't break external code",
+      "evidence_types": [
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/adapters/mod_i.py",
+        "text_processor/adapters/mod_j.py"
+      ]
+    },
+    {
+      "id": "inv-027",
+      "type": "PURPOSE",
+      "description": "Validators are separate modules because validation is a cross-cutting concern distinct from domain-specific transformation",
+      "structured": {
+        "type": "PURPOSE",
+        "pattern": "Validators are separate modules because validation is a cross-cutting concern distinct from domain-specific transformation"
+      },
+      "involved_modules": [
+        "text_processor/validators/mod_o.py",
+        "text_processor/validators/mod_p.py",
+        "text_processor/validators/mod_q.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "rationale": "Embedding validation in stages would duplicate logic and make validation rules inconsistent across stages",
+      "evidence_types": [
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/validators/mod_o.py",
+        "text_processor/validators/mod_p.py"
+      ]
+    },
+    {
+      "id": "inv-028",
+      "type": "PURPOSE",
+      "description": "Lifecycle hooks (pre/post/error) are separate modules because lifecycle management is distinct from data processing",
+      "structured": {
+        "type": "PURPOSE",
+        "pattern": "Lifecycle hooks (pre/post/error) are separate modules because lifecycle management is distinct from data processing"
+      },
+      "involved_modules": [
+        "text_processor/hooks/mod_r.py",
+        "text_processor/hooks/mod_s.py",
+        "text_processor/hooks/mod_t.py",
+        "text_processor/runner.py"
+      ],
+      "rationale": "Inline lifecycle callbacks in the runner would couple lifecycle management to orchestration logic",
+      "evidence_types": [
+        "documentation"
+      ],
+      "evidence_locations": [
+        "text_processor/hooks/mod_r.py",
+        "text_processor/hooks/mod_s.py"
+      ]
+    }
+  ],
+  "design_rationales": [
+    {
+      "id": "dr-001",
+      "question": "Why is there a separate text_processor/models.py instead of defining data types within each stage?",
+      "answer": "Centralizing data types in models.py prevents circular imports between stages and ensures type consistency across the pipeline.",
+      "affected_modules": [
+        "text_processor/models.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "downstream_effects": [
+        "Moving types into stages would create circular imports",
+        "Type changes would require editing multiple files",
+        "Stages could no longer be tested independently"
+      ]
+    },
+    {
+      "id": "dr-002",
+      "question": "Why do all stages inherit from StageBase in text_processor/base.py?",
+      "answer": "A common base class enforces a uniform process() interface, enables the registry to load stages generically, and allows middleware to wrap any stage without special-casing.",
+      "affected_modules": [
+        "text_processor/base.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py",
+        "text_processor/adapters/mod_i.py",
+        "text_processor/adapters/mod_j.py",
+        "text_processor/adapters/mod_k.py"
+      ],
+      "downstream_effects": [
+        "Removing StageBase would break registry auto-discovery",
+        "Middleware would need per-stage wiring logic",
+        "Adding a new stage would require updating the runner"
+      ]
+    },
+    {
+      "id": "dr-003",
+      "question": "Why does text_processor/runner.py use text_processor/registry.py to resolve stages instead of importing them directly?",
+      "answer": "Registry-based resolution allows stage ordering to be config-driven. Direct imports would hard-code the pipeline structure and require code changes to add, remove, or reorder stages.",
+      "affected_modules": [
+        "text_processor/runner.py",
+        "text_processor/registry.py",
+        "text_processor/config.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "downstream_effects": [
+        "Direct imports would hide architecture from config",
+        "Stage ordering changes would require code edits",
+        "Dynamic stage loading (e.g., plugins) would be impossible"
+      ]
+    },
+    {
+      "id": "dr-004",
+      "question": "Why are there adapter modules wrapping some stages instead of exposing stages directly?",
+      "answer": "Adapters provide a stable external interface. If a stage's internal implementation changes, only its adapter needs updating, not every external consumer.",
+      "affected_modules": [
+        "text_processor/adapters/mod_i.py",
+        "text_processor/adapters/mod_j.py",
+        "text_processor/adapters/mod_k.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "downstream_effects": [
+        "Direct stage access would couple external code to internals",
+        "Stage API changes would break all consumers simultaneously",
+        "Testing external integrations would require full stage setup"
+      ]
+    },
+    {
+      "id": "dr-005",
+      "question": "Why is logging/retry/metrics implemented as middleware modules rather than embedded in each stage?",
+      "answer": "Middleware modules apply cross-cutting concerns uniformly. Embedding logging/retry in each stage would duplicate code and risk inconsistent behavior across stages.",
+      "affected_modules": [
+        "text_processor/middleware/mod_l.py",
+        "text_processor/middleware/mod_m.py",
+        "text_processor/middleware/mod_n.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py",
+        "text_processor/runner.py"
+      ],
+      "downstream_effects": [
+        "Per-stage logging would diverge in format and verbosity",
+        "Retry logic would be duplicated and potentially inconsistent",
+        "Adding a new cross-cutting concern would touch every stage"
+      ]
+    },
+    {
+      "id": "dr-006",
+      "question": "Why are validators in a separate subpackage instead of built into each stage's process() method?",
+      "answer": "Validation is a cross-cutting concern: multiple stages share the same validation rules. Separating validators allows reuse, consistent error handling, and independent testing of validation logic.",
+      "affected_modules": [
+        "text_processor/validators/mod_o.py",
+        "text_processor/validators/mod_p.py",
+        "text_processor/validators/mod_q.py",
+        "text_processor/stages/mod_a.py",
+        "text_processor/stages/mod_b.py",
+        "text_processor/stages/mod_c.py",
+        "text_processor/stages/mod_d.py",
+        "text_processor/stages/mod_e.py",
+        "text_processor/stages/mod_f.py",
+        "text_processor/stages/mod_g.py",
+        "text_processor/stages/mod_h.py"
+      ],
+      "downstream_effects": [
+        "Embedding validation in stages would duplicate validation rules",
+        "Changing a validation rule would require editing multiple stages",
+        "Validation could not be composed or chained independently"
+      ]
+    },
+    {
+      "id": "dr-007",
+      "question": "Why does the pipeline use a factory module instead of constructing the pipeline directly in cli.py?",
+      "answer": "The factory encapsulates the complex wiring of registry, middleware, hooks, and configuration. CLI, tests, and other entry points can create pipelines without duplicating setup logic.",
+      "affected_modules": [
+        "text_processor/pipeline_factory.py",
+        "text_processor/runner.py",
+        "text_processor/registry.py",
+        "text_processor/middleware/mod_l.py",
+        "text_processor/middleware/mod_m.py",
+        "text_processor/middleware/mod_n.py",
+        "text_processor/hooks/mod_r.py",
+        "text_processor/hooks/mod_s.py",
+        "text_processor/hooks/mod_t.py"
+      ],
+      "downstream_effects": [
+        "Without the factory, CLI and tests would duplicate wiring code",
+        "Adding a new middleware type would require changes in multiple places",
+        "Pipeline configuration would be scattered across entry points"
+      ]
+    },
+    {
+      "id": "dr-008",
+      "question": "Why are lifecycle hooks separate modules instead of callback functions inside the runner?",
+      "answer": "Separate hook modules allow lifecycle behavior to be configured, replaced, or extended independently. Inline callbacks would couple lifecycle logic to the runner.",
+      "affected_modules": [
+        "text_processor/hooks/mod_r.py",
+        "text_processor/hooks/mod_s.py",
+        "text_processor/hooks/mod_t.py",
+        "text_processor/runner.py",
+        "text_processor/pipeline_factory.py"
+      ],
+      "downstream_effects": [
+        "Inline hooks could not be replaced without editing the runner",
+        "Testing lifecycle behavior would require full pipeline setup",
+        "Adding monitoring or alerting hooks would bloat the runner"
+      ]
+    }
+  ],
+  "dependency_edges": [
+    {
+      "source": "text_processor/base.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/base.py",
+      "target": "text_processor/types.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/registry.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/registry.py",
+      "target": "text_processor/config.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_a.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_a.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_a.py",
+      "target": "text_processor/exceptions.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_b.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_b.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_b.py",
+      "target": "text_processor/exceptions.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_c.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_c.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_c.py",
+      "target": "text_processor/exceptions.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_d.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_d.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_d.py",
+      "target": "text_processor/exceptions.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_e.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_e.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_e.py",
+      "target": "text_processor/exceptions.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_f.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_f.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_f.py",
+      "target": "text_processor/exceptions.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_g.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_g.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_g.py",
+      "target": "text_processor/exceptions.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_h.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_h.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_h.py",
+      "target": "text_processor/exceptions.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_a.py",
+      "target": "text_processor/stages/mod_b.py",
+      "type": "DATA_FLOWS_TO"
+    },
+    {
+      "source": "text_processor/stages/mod_b.py",
+      "target": "text_processor/stages/mod_c.py",
+      "type": "DATA_FLOWS_TO"
+    },
+    {
+      "source": "text_processor/stages/mod_c.py",
+      "target": "text_processor/stages/mod_d.py",
+      "type": "DATA_FLOWS_TO"
+    },
+    {
+      "source": "text_processor/stages/mod_d.py",
+      "target": "text_processor/stages/mod_e.py",
+      "type": "DATA_FLOWS_TO"
+    },
+    {
+      "source": "text_processor/stages/mod_e.py",
+      "target": "text_processor/stages/mod_f.py",
+      "type": "DATA_FLOWS_TO"
+    },
+    {
+      "source": "text_processor/stages/mod_f.py",
+      "target": "text_processor/stages/mod_g.py",
+      "type": "DATA_FLOWS_TO"
+    },
+    {
+      "source": "text_processor/stages/mod_g.py",
+      "target": "text_processor/stages/mod_h.py",
+      "type": "DATA_FLOWS_TO"
+    },
+    {
+      "source": "text_processor/registry.py",
+      "target": "text_processor/stages/mod_a.py",
+      "type": "REGISTRY_WIRES"
+    },
+    {
+      "source": "text_processor/registry.py",
+      "target": "text_processor/stages/mod_b.py",
+      "type": "REGISTRY_WIRES"
+    },
+    {
+      "source": "text_processor/registry.py",
+      "target": "text_processor/stages/mod_c.py",
+      "type": "REGISTRY_WIRES"
+    },
+    {
+      "source": "text_processor/registry.py",
+      "target": "text_processor/stages/mod_d.py",
+      "type": "REGISTRY_WIRES"
+    },
+    {
+      "source": "text_processor/registry.py",
+      "target": "text_processor/stages/mod_e.py",
+      "type": "REGISTRY_WIRES"
+    },
+    {
+      "source": "text_processor/registry.py",
+      "target": "text_processor/stages/mod_f.py",
+      "type": "REGISTRY_WIRES"
+    },
+    {
+      "source": "text_processor/registry.py",
+      "target": "text_processor/stages/mod_g.py",
+      "type": "REGISTRY_WIRES"
+    },
+    {
+      "source": "text_processor/registry.py",
+      "target": "text_processor/stages/mod_h.py",
+      "type": "REGISTRY_WIRES"
+    },
+    {
+      "source": "text_processor/adapters/mod_i.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/adapters/mod_i.py",
+      "target": "text_processor/stages/mod_a.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/adapters/mod_i.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/adapters/mod_i.py",
+      "target": "text_processor/stages/mod_a.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/adapters/mod_j.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/adapters/mod_j.py",
+      "target": "text_processor/stages/mod_c.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/adapters/mod_j.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/adapters/mod_j.py",
+      "target": "text_processor/stages/mod_c.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/adapters/mod_k.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/adapters/mod_k.py",
+      "target": "text_processor/stages/mod_f.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/adapters/mod_k.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/adapters/mod_k.py",
+      "target": "text_processor/stages/mod_f.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/middleware/mod_l.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/middleware/mod_m.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/middleware/mod_n.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/validators/mod_o.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/validators/mod_o.py",
+      "target": "text_processor/exceptions.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/validators/mod_o.py",
+      "target": "text_processor/types.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/validators/mod_p.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/validators/mod_p.py",
+      "target": "text_processor/exceptions.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/validators/mod_p.py",
+      "target": "text_processor/types.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/validators/mod_q.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/validators/mod_q.py",
+      "target": "text_processor/exceptions.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/validators/mod_q.py",
+      "target": "text_processor/types.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_a.py",
+      "target": "text_processor/validators/mod_o.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/stages/mod_b.py",
+      "target": "text_processor/validators/mod_o.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/stages/mod_c.py",
+      "target": "text_processor/validators/mod_p.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/stages/mod_d.py",
+      "target": "text_processor/validators/mod_p.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/stages/mod_e.py",
+      "target": "text_processor/validators/mod_q.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/stages/mod_f.py",
+      "target": "text_processor/validators/mod_q.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/stages/mod_g.py",
+      "target": "text_processor/validators/mod_q.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/stages/mod_h.py",
+      "target": "text_processor/validators/mod_q.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/hooks/mod_r.py",
+      "target": "text_processor/config.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/hooks/mod_r.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/hooks/mod_s.py",
+      "target": "text_processor/config.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/hooks/mod_s.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/hooks/mod_t.py",
+      "target": "text_processor/config.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/hooks/mod_t.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/serializers/mod_u.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/serializers/mod_u.py",
+      "target": "text_processor/utils/formatters.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/serializers/mod_v.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/serializers/mod_v.py",
+      "target": "text_processor/utils/formatters.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/utils/helpers.py",
+      "target": "text_processor/config.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/utils/formatters.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_a.py",
+      "target": "text_processor/utils/helpers.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_b.py",
+      "target": "text_processor/utils/helpers.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_c.py",
+      "target": "text_processor/utils/helpers.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_d.py",
+      "target": "text_processor/utils/helpers.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_e.py",
+      "target": "text_processor/utils/helpers.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_f.py",
+      "target": "text_processor/utils/helpers.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_g.py",
+      "target": "text_processor/utils/helpers.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/stages/mod_h.py",
+      "target": "text_processor/utils/helpers.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/legacy/old_pipeline.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/legacy/compat.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/legacy/deprecated_tests.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/legacy/migration_v1.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/config.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/registry.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/models.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/base.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/registry.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/middleware/mod_l.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/middleware/mod_l.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/middleware/mod_m.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/middleware/mod_m.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/middleware/mod_n.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/middleware/mod_n.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/hooks/mod_r.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/hooks/mod_r.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/hooks/mod_s.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/hooks/mod_s.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/hooks/mod_t.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/hooks/mod_t.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/stages/mod_a.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/stages/mod_b.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/stages/mod_c.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/stages/mod_d.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/stages/mod_e.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/stages/mod_f.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/stages/mod_g.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/stages/mod_h.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/serializers/mod_u.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/runner.py",
+      "target": "text_processor/serializers/mod_u.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/config.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/registry.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/runner.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/registry.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/runner.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/middleware/mod_l.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/middleware/mod_l.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/middleware/mod_m.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/middleware/mod_m.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/middleware/mod_n.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/middleware/mod_n.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/hooks/mod_r.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/hooks/mod_r.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/hooks/mod_s.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/hooks/mod_s.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/hooks/mod_t.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/pipeline_factory.py",
+      "target": "text_processor/hooks/mod_t.py",
+      "type": "CALLS_API"
+    },
+    {
+      "source": "text_processor/cli.py",
+      "target": "text_processor/pipeline_factory.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/cli.py",
+      "target": "text_processor/config.py",
+      "type": "IMPORTS"
+    },
+    {
+      "source": "text_processor/cli.py",
+      "target": "text_processor/pipeline_factory.py",
+      "type": "CALLS_API"
+    }
+  ],
+  "contracts": []
+}

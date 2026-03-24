@@ -24,7 +24,7 @@ app = typer.Typer(help="Generate synthetic codebases for ToCS benchmarking.")
 @app.command()
 def generate(
     pattern: str = typer.Option("pipeline", help="Architecture pattern (pipeline)"),
-    complexity: str = typer.Option("medium", help="Complexity tier: small | medium"),
+    complexity: str = typer.Option("medium", help="Complexity tier: small | medium | large"),
     seed: int = typer.Option(42, help="Random seed for reproducibility"),
     output: Path = typer.Option(..., help="Output directory for generated codebase"),
 ) -> None:

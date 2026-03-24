@@ -25,7 +25,7 @@
 \title{Theory of Code Space: Do Code Agents Understand Software Architecture?}
 
 \author{
-  Grigory Sapunov\thanks{Work in progress. LLM results are preliminary (single run per model-codebase pair); subsequent versions will include repeated runs with variance estimation, additional models, and codebase patterns. Collaborations welcome.} \\
+  Grigory Sapunov\thanks{Work in progress. All LLM results are preliminary (single run, single prompt, one pattern); model comparison at scale is future work. Collaborations welcome.} \\
   Intento \\
   \texttt{gs@inten.to}
 }
@@ -36,7 +36,7 @@
 
 % ============================================================================
 \begin{abstract}
-AI code agents excel at isolated tasks---writing functions, fixing localized bugs---yet struggle with complex, multi-file software engineering that requires understanding how dozens of modules relate to each other. We hypothesize that these failures stem from an inability to construct, maintain, and update coherent \emph{architectural beliefs} during codebase exploration. We introduce \textbf{Theory of Code Space} (\tocs{}), a benchmark that evaluates this capability by placing agents in procedurally generated codebases under partial observability, requiring them to build structured belief states over module dependencies, cross-cutting invariants, and design intent. Our framework makes three key design choices: (1)~a procedural codebase generator producing medium-complexity Python projects with four typed edge categories reflecting different discovery methods---from syntactic imports to config-driven dynamic wiring---with planted architectural constraints and verified ground truth; (2)~a partial observability harness where agents explore under a budget, ensuring that exploration strategy matters; and (3)~periodic belief probing via structured JSON, producing a time-series of architectural understanding rather than a single final snapshot. We decompose the Active-Passive Gap from spatial reasoning benchmarks into selection and decision components, and introduce Architectural Constraint Discovery as a code-specific evaluation dimension absent from spatial domains. Preliminary experiments with four rule-based baselines and six frontier LLM agents from three providers validate the benchmark's discriminative power: methods span a wide performance range (Dependency F1 from 0.147 to 0.676), LLM agents discover semantic edge types invisible to all baselines and achieve non-trivial architectural invariant discovery (relaxed F1 up to 0.78), yet weaker models score below simple heuristics---revealing that \emph{belief externalization} and \emph{belief state maintenance} are themselves non-trivial capabilities: some models catastrophically forget previously-discovered components between probes, with the surprising result that a smaller model (Gemini~2.5~Flash) maintains perfectly stable beliefs while its larger sibling (Gemini~2.5~Pro) suffers catastrophic belief collapse. We release the complete toolkit as open-source software and invite the community to evaluate additional models and contribute codebase patterns.\footnote{Code: \url{https://github.com/che-shr-cat/tocs}}
+AI code agents excel at isolated tasks yet struggle with multi-file software engineering requiring architectural understanding. We introduce \textbf{Theory of Code Space} (\tocs{}), a benchmark that evaluates whether agents can construct, maintain, and update coherent \emph{architectural beliefs} during codebase exploration. Agents explore procedurally generated codebases under partial observability---opening files under a budget---and periodically externalize their belief state as structured JSON, producing a time-series of architectural understanding. Four findings emerge from experiments with four baselines and six frontier LLMs across two codebase sizes. First, the Active-Passive Gap is \emph{model-dependent}: one model builds better maps through active exploration than from seeing all files at once, while another shows the opposite---revealing that active exploration is itself a non-trivial capability absent from some models. Second, retaining structured belief maps in context acts as self-scaffolding for some models but not others, showing that the mechanism is model-dependent. Third, \emph{belief state maintenance} varies dramatically: a smaller model maintains perfectly stable beliefs across probes while its larger sibling suffers catastrophic belief collapse---forgetting previously-discovered components between probes. Fourth, scaling to larger codebases \emph{amplifies} the APG and flips the sign of decision cost---active exploration becomes more valuable at scale. We release \tocs{} as open-source software.\footnote{Code: \url{https://github.com/che-shr-cat/tocs}}
 \end{abstract}
 
 % ============================================================================
@@ -51,13 +51,7 @@ We propose \textbf{Theory of Code Space} (\tocs{}), a benchmark that transplants
 
 Beyond the spatial analogy, we introduce \textbf{Architectural Constraint Discovery}---a dimension absent from spatial benchmarks. In code, architectural decisions encode \emph{checkable constraints}: a forbidden dependency enforces a service boundary; a validation chain ensures data integrity. We plant explicit, verifiable constraints in our generated codebases and measure whether agents can discover them.
 
-Our contributions are:
-\begin{enumerate}[nosep]
-    \item The \tocs{} benchmark framework: the first evaluation for active architectural belief construction, revision, and exploitation in code (\S\ref{sec:benchmark}).
-    \item A procedural codebase generator producing medium-complexity projects with four typed edge categories, planted invariants, and verified ground truth (\S\ref{sec:generation}).
-    \item Pilot experiments with four baselines and four frontier LLM agents from three providers, showing that the two strongest agents surpass all baselines (F1~=~0.676 and 0.650 vs.\ 0.577) while revealing a wide capability spread: LLM agents discover all four edge types and, under improved prompts, achieve non-trivial invariant discovery (relaxed F1 up to 0.78), yet weaker models score below simple heuristics (\S\ref{sec:results}).
-    \item An open benchmark with evaluation harness, scoring pipeline, and community call for expanded model evaluation (\S\ref{sec:discussion}).
-\end{enumerate}
+Our contributions: (1)~the \tocs{} benchmark framework for active architectural belief construction in code (\S\ref{sec:benchmark}); (2)~a procedural codebase generator with four typed edge categories, planted invariants, and two complexity tiers (\S\ref{sec:generation}); (3)~experiments with four baselines and six LLMs showing four findings---a model-dependent Active-Passive Gap, model-dependent self-scaffolding, dramatic belief state instability differences, and APG amplification with codebase scale (\S\ref{sec:results}--\ref{sec:scaling}); (4)~an open benchmark released for community evaluation (\S\ref{sec:discussion}).
 
 % ============================================================================
 \section{Related Work}
@@ -85,6 +79,7 @@ We formalize codebase understanding as \emph{belief construction} over a latent 
     \item[Revise] Update $\mathcal{M}_t \to \mathcal{M}_{t+\Delta t}$ when the environment mutates ($S \to S'$) and the agent encounters evidence of the change.
     \item[Exploit] Use $\mathcal{M}_t$ to perform a downstream engineering task correctly (v1.0; v0.1 uses counterfactual probes as a proxy).
 \end{description}
+\noindent This paper evaluates \textbf{Construct}; Revise and Exploit are implemented in the framework but reserved for future evaluation (\S\ref{sec:roadmap}).
 
 \subsection{Environment and Action Space}
 
@@ -117,7 +112,7 @@ The externalized cognitive map $\hat{\mathcal{M}}_t$ contains: (1) \textbf{compo
 
 This decomposes: $\text{APG}_\text{total}$ (passive-full $-$ active) into $\text{APG}_\text{selection}$ (passive-oracle $-$ active, the cost of choosing \emph{which} files) and $\text{APG}_\text{decision}$ (passive-replay $-$ active, the cost of deciding \emph{what to do} with observations).
 
-\noindent\textbf{Scope note:} v0.1 evaluates the \textbf{Construct} operation in \textbf{Active} mode only. The passive conditions and APG decomposition are implemented in the harness and reserved for future work with frontier model evaluations.
+\noindent We report APG decomposition results for GPT-5.3-Codex and Gemini~2.5~Flash in \S\ref{sec:apg}.
 
 \subsection{Architectural Constraint Discovery}
 
@@ -135,11 +130,11 @@ Each constraint has a \textbf{discoverability requirement}: test evidence, struc
 
 \subsection{Architecture Grammar}
 
-Our v0.1 generator produces \textbf{Pipeline} architecture codebases with controlled anti-triviality measures. A \texttt{PipelineTemplate} grammar defines:
+Our generator produces \textbf{Pipeline} architecture codebases at two complexity tiers with controlled anti-triviality measures. A \texttt{PipelineTemplate} grammar defines:
 
 \begin{itemize}[nosep]
-    \item \textbf{Domain pools}: Three domains (data ETL, log processing, text processing), each with 8 semantically coherent processing stages. Medium complexity selects 6--8 stages.
-    \item \textbf{Module roles}: Infrastructure (models, base class, config, exceptions, registry), stages (processing steps implementing a common ABC), adapters (wrapping stages with additional behavior), middleware (cross-cutting decorators), utilities, and legacy/distractor modules.
+    \item \textbf{Domain pools}: Three domains (data ETL, log processing, text processing), each with 8 semantically coherent processing stages. Medium complexity selects 6--8 stages; large uses all~8.
+    \item \textbf{Module roles}: Infrastructure (models, base class, config, exceptions, registry), stages (processing steps implementing a common ABC), adapters (wrapping stages with additional behavior), middleware (cross-cutting decorators), utilities, and legacy/distractor modules. The \textbf{large} tier adds validators, lifecycle hooks, serializers, a pipeline factory, and protocol definitions---creating deeper cross-cutting edge patterns.
     \item \textbf{Anti-triviality}: (1) \emph{Registry wiring}---stages connected via config, not direct imports; (2) \emph{Adapter indirection}---ABC interface layer; (3) \emph{Distractor modules}---files not in the main pipeline; (4) \emph{Neutral naming}---\texttt{mod\_a.py}, not \texttt{extract.py}; (5) \emph{Hidden invariants}---constraints discoverable only by reading function bodies or tests.
 \end{itemize}
 
@@ -153,30 +148,32 @@ Each generated codebase contains edges of four types, reflecting different \emph
     \item \textsc{data\_flows\_to} ($\sim$7\%): Data dependency where one module's output feeds another's input. Requires understanding orchestration logic; docstrings on the orchestrator may describe the data flow.
 \end{itemize}
 
-These proportions are not tunable parameters but \emph{emerge from the architectural template}: a Pipeline with $N$ stages naturally generates $\sim$3--4$\times$ more \textsc{imports} edges because every module requires static imports, while semantic edge types arise only at specific architectural boundaries (adapter$\to$stage, orchestrator$\to$stage, consecutive stages). This mirrors real-world Pipeline codebases, where import edges dominate. Different architectural patterns (event-driven, microservices) would yield different distributions---a key motivation for extending the generator. Crucially, roughly one-third of edges are \emph{invisible to import-following} (specific to our Pipeline template; other architectural patterns would yield different proportions), creating a meaningful gap between syntactic analysis and semantic understanding.
+These proportions emerge from the Pipeline template: static imports dominate, while semantic edges arise only at architectural boundaries. Crucially, roughly one-third of edges are \emph{invisible to import-following}, creating a meaningful gap between syntactic analysis and semantic understanding.
 
 \subsection{Invariant Planting}
 
-Each codebase contains 15--16 planted constraints across five types: \textsc{boundary} (forbidden dependencies), \textsc{dataflow} (required processing chains), \textsc{interface} (access-only-through-ABC), \textsc{invariant} (naming/structural conventions), and \textsc{purpose} (design rationales). Every constraint has a \emph{structured canonical form} with five fields for machine-comparable scoring: \texttt{type} (constraint category), \texttt{src} and \texttt{dst} (the modules involved), \texttt{via} (the intermediary or mechanism, e.g., an ABC interface), and \texttt{pattern} (the structural rule, e.g., ``no direct import''). For example, a boundary constraint might be \texttt{(boundary, mod\_a, mod\_c, base.StageBase, ``must access only through ABC'')}. Each constraint has at least one evidence source (test file, structural pattern, or documentation).
+Each codebase contains 15--28 planted constraints (15--16 at medium, 28 at large) across five types: \textsc{boundary} (forbidden dependencies), \textsc{dataflow} (required processing chains), \textsc{interface} (access-only-through-ABC), \textsc{invariant} (naming/structural conventions), and \textsc{purpose} (design rationales). Every constraint has a \emph{structured canonical form} with five fields for machine-comparable scoring: \texttt{type} (constraint category), \texttt{src} and \texttt{dst} (the modules involved), \texttt{via} (the intermediary or mechanism, e.g., an ABC interface), and \texttt{pattern} (the structural rule, e.g., ``no direct import''). For example, a boundary constraint might be \texttt{(boundary, mod\_a, mod\_c, base.StageBase, ``must access only through ABC'')}. Each constraint has at least one evidence source (test file, structural pattern, or documentation).
 
 \subsection{Generation Statistics}
 
 \begin{table}[!ht]
 \centering
-\caption{Generated codebase characteristics (medium complexity, 3 seeds).}
+\caption{Generated codebase characteristics (3 seeds each). Large tier adds validators, hooks, serializers, factory, and protocol modules.}
 \label{tab:codebases}
-\begin{tabular}{@{}lccc@{}}
+\begin{tabular}{@{}lcccccc@{}}
 \toprule
-\textbf{Metric} & \textbf{Seed 42} & \textbf{Seed 123} & \textbf{Seed 999} \\
+ & \multicolumn{3}{c}{\textbf{Medium}} & \multicolumn{3}{c}{\textbf{Large}} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7}
+\textbf{Metric} & \textbf{42} & \textbf{123} & \textbf{999} & \textbf{42} & \textbf{123} & \textbf{999} \\
 \midrule
-Modules & 27 & 30 & 27 \\
-Total edges & 70 & 84 & 70 \\
-\quad \textsc{imports} & 47 (67\%) & 56 (67\%) & 47 (67\%) \\
-\quad \textsc{calls\_api} & 12 (17\%) & 15 (18\%) & 12 (17\%) \\
-\quad \textsc{data\_flows\_to} & 5 (7\%) & 6 (7\%) & 5 (7\%) \\
-\quad \textsc{registry\_wires} & 6 (9\%) & 7 (8\%) & 6 (9\%) \\
-Invariants & 15 & 16 & 15 \\
-Sub-packages & 5 & 5 & 5 \\
+Modules & 27 & 30 & 27 & 46 & 47 & 47 \\
+Total edges & 70 & 84 & 70 & 146 & 150 & 149 \\
+\quad \textsc{imports} & 47 & 56 & 47 & 95 & 98 & 98 \\
+\quad \textsc{calls\_api} & 12 & 15 & 12 & 36 & 37 & 36 \\
+\quad \textsc{data\_flows\_to} & 5 & 6 & 5 & 7 & 7 & 7 \\
+\quad \textsc{registry\_wires} & 6 & 7 & 6 & 8 & 8 & 8 \\
+Invariants & 15 & 16 & 15 & 28 & 28 & 28 \\
+Sub-packages & 5 & 5 & 5 & 8 & 8 & 8 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -189,7 +186,7 @@ Sub-packages & 5 & 5 & 5 \\
 Compare predicted edges from the cognitive map against ground truth. An edge matches if (source, target, type) all agree via exact string matching. Targets must be specific file paths: a directory-level edge (e.g., \texttt{registry.py $\to$ stages/}) does not match file-level ground truth (e.g., \texttt{registry.py $\to$ stages/mod\_a.py}). Similarly, symbol-qualified targets (e.g., \texttt{base.py::StageBase} instead of \texttt{base.py}) do not match even when the file path portion is correct. This strict matching is deliberate---our ground truth is component-level (one file = one node)---but means that models reporting correct relationships at the wrong granularity or format receive no credit. We report precision, recall, and F1 separately.
 
 \paragraph{Invariant F1.}
-Match agent-discovered constraints against planted constraints via \emph{structured form} comparison---exact field matching on \texttt{(type, src, dst, via)}, not text similarity. This eliminates ambiguity in natural-language descriptions.
+Match agent-discovered constraints against planted constraints via \emph{structured form} comparison on \texttt{(type, src, dst, via)}, not text similarity. \textbf{Strict} matching requires exact agreement on all four fields. \textbf{Relaxed} matching normalizes paths (directory prefix stripped), treats empty ground-truth fields as wildcards, and uses greedy 1-to-1 assignment---accommodating models that identify the correct constraint type and endpoints but use slightly different path formats. We report relaxed F1 in the main tables; strict scores are near-zero for all models due to compounding format mismatches.
 
 \paragraph{Confidence Calibration.}
 Expected Calibration Error (ECE) between agent-stated per-edge confidence and actual correctness, binned into 5 confidence intervals.
@@ -207,7 +204,7 @@ After a mutation at time $t_m$: $\text{BRS} = |\text{correctly updated}| / |\tex
 \section{Experiments}
 \label{sec:results}
 
-We evaluate four rule-based exploration strategies and five frontier LLM agents from three providers on three generated codebases (seeds 42, 123, 999) under identical conditions: budget $B{=}20$, probe interval $K{=}3$. These results are preliminary; we report them to validate the benchmark's discriminative power and invite community replication.
+We evaluate four rule-based exploration strategies and six frontier LLM agents from three providers on three generated codebases (seeds 42, 123, 999) under identical conditions: budget $B{=}20$, probe interval $K{=}3$.
 
 \subsection{Methods}
 
@@ -258,20 +255,20 @@ Gemini 3 Flash  & LLM     & 0.147\pms{.012} & 0.897 & 0.080 & 0.133\pms{.016} & 
 
 \begin{table}[!ht]
 \centering
-\caption{Edge type recall by method (aggregated over 3 codebases). $n$ = total ground-truth edges of each type. Values show true recall (matched edges / ground truth). \textbf{Bold} = best non-Oracle recall per type. $\dagger$P\! = per-type precision where significant over-generation occurs (false positives exceed true positives).}
+\caption{Edge type recall by method (aggregated over 3 codebases). $n$ = total ground-truth edges of each type. \textbf{Bold} = best non-Oracle recall per type.}
 \label{tab:edge_types}
 \begin{tabular}{@{}lcccc@{}}
 \toprule
 \textbf{Method} & \textsc{imports} & \textsc{calls\_api} & \textsc{data\_flows} & \textsc{reg.\_wires} \\
  & ($n{=}150$) & ($n{=}39$) & ($n{=}16$) & ($n{=}19$) \\
 \midrule
-Config-Aware    & 0.58 & 0.00 & 0.00 & \textbf{1.00}$^{\dagger\text{P=.33}}$ \\
+Config-Aware    & 0.58 & 0.00 & 0.00 & \textbf{1.00} \\
 Random          & 0.55 & 0.00 & 0.00 & 0.00 \\
 BFS-Import      & 0.25 & 0.00 & 0.00 & 0.00 \\
 \midrule
-GPT-5.3-Codex   & \textbf{0.69} & 0.15 & \textbf{0.31} & \textbf{1.00}$^{\dagger\text{P=.33}}$ \\
+GPT-5.3-Codex   & \textbf{0.69} & 0.15 & \textbf{0.31} & \textbf{1.00} \\
 Claude Sonnet 4.6 & 0.56 & \textbf{0.15} & 0.00 & \textbf{1.00} \\
-Gemini 2.5 Flash & 0.47 & \textbf{0.18} & 0.00 & 0.37$^{\dagger\text{P=.58}}$ \\
+Gemini 2.5 Flash & 0.47 & \textbf{0.18} & 0.00 & 0.37 \\
 Gemini 3.1 Pro  & 0.27 & 0.00 & \textbf{0.50} & 0.00 \\
 Gemini 2.5 Pro  & 0.12 & 0.08 & 0.00 & 0.53 \\
 Gemini 3 Flash  & 0.11 & 0.00 & 0.00 & 0.05 \\
@@ -308,28 +305,151 @@ Gemini 3 Flash  & 0.11 & 0.00 & 0.00 & 0.05 \\
 
 \subsection{Analysis}
 
-The following observations are based on a single run per model-codebase pair across six LLM agents from three providers. We present them to illustrate the benchmark's discriminative power; the specific rankings and effect sizes should be treated as preliminary until confirmed with repeated runs and additional models.
-
 \paragraph{Two LLM agents surpass all baselines.}
-GPT-5.3-Codex achieves the highest Dependency F1~=~0.676, and Claude Sonnet~4.6 reaches F1~=~0.664, both surpassing the best rule-based strategy (Config-Aware, 0.577) by 9--10 points. GPT opens 15 files per codebase (vs.\ 13 for baselines) and attains the highest recall (0.597), while Claude opens only 13 files but with near-perfect precision (0.983). This precision-recall tradeoff reflects different exploration strategies: GPT favors broad coverage, Claude favors targeted, confident exploration. Both discover \emph{all} ground-truth REGISTRY\_WIRES edges (Table~\ref{tab:edge_types})---matching Config-Aware's recall but with GPT matching Config-Aware's 33\% precision on this type (over-generating false positives) while Claude achieves perfect REGISTRY\_WIRES precision (zero false positives).
+GPT-5.3-Codex (F1~=~0.676) and Claude Sonnet~4.6 (F1~=~0.664) both exceed Config-Aware (0.577) by 9--10 points. GPT favors broad coverage (highest recall, 0.597); Claude favors targeted exploration (near-perfect precision, 0.983). Both discover all ground-truth REGISTRY\_WIRES edges.
 
 \paragraph{LLM agents discover all four edge types.}
-Table~\ref{tab:edge_types} reveals the most distinctive finding: \textbf{LLM agents collectively discover all four edge types}, while baselines find at most two (IMPORTS and REGISTRY\_WIRES for Config-Aware). GPT-5.3-Codex achieves the highest IMPORTS recall (69\%, exceeding even Config-Aware's 58\%). For DATA\_FLOWS\_TO edges---which require multi-hop reasoning, tracing one module's return value through the runner into the next module's input---Gemini~3.1~Pro achieves the highest recall (50\%), with perfect discovery on one codebase (6/6 inter-stage data flow edges), followed by GPT-5.3-Codex (31\%). Claude found zero DATA\_FLOWS\_TO edges despite reading the runner code---it inferred REGISTRY\_WIRES from the config alone without reading enough stages to trace data flow. This \emph{exploration-comprehension tradeoff} shows that even correct understanding of the orchestrator is insufficient---agents must also open the linked modules to infer inter-stage data dependencies. Gemini~2.5~Flash discovers CALLS\_API (18\% recall) and REGISTRY\_WIRES (37\% recall) edges invisible to BFS-Import and Random baselines.
+\textbf{LLM agents collectively discover all four edge types} (Table~\ref{tab:edge_types}), while baselines find at most two. The most distinctive capability is DATA\_FLOWS\_TO discovery---requiring multi-hop reasoning through the orchestrator---where Gemini~3.1~Pro achieves 50\% recall and GPT-5.3-Codex 31\%. Claude found zero DATA\_FLOWS\_TO edges despite reading the runner code, illustrating an \emph{exploration-comprehension tradeoff}: understanding the orchestrator is insufficient without also opening the linked stage modules.
 
 \paragraph{Improved prompts unlock invariant discovery.}
-With improved probe prompts providing per-type field semantics and pairwise decomposition instructions, LLM agents achieve substantial invariant F1 under relaxed matching (\S\ref{sec:probing}): Claude Sonnet~4.6 leads with 0.778, GPT-5.3-Codex achieves 0.739, and Gemini~2.5~Flash reaches 0.517. This is a dramatic improvement over the zero scores obtained with the earlier prompt version, confirming that invariant discovery was primarily a prompt specification problem rather than a model capability gap (\S\ref{sec:discussion}). Gemini~2.5~Pro achieves 0.376, while Gemini~3~Flash---which struggles with edge discovery---scores only 0.125. Baselines score zero on invariants as they cannot reason about cross-cutting constraints.
+With improved probe prompts, LLM agents achieve substantial invariant F1 under relaxed matching: Claude leads (0.778), followed by GPT (0.739) and Gemini~2.5~Flash (0.517). All models scored zero under the earlier prompt version, confirming this was primarily a prompt specification problem (\S\ref{sec:lessons}).
 
-\paragraph{The belief externalization bottleneck.}
-The three Gemini models illustrate the belief externalization problem with distinct failure modes. Gemini~2.5~Flash opens 14 files (comparable to baselines) and demonstrates clear code comprehension---action logs show import-chain-following behavior. Yet its IMPORTS recall (47\%) lags behind Config-Aware (58\%) and GPT (69\%) due to (1)~\emph{granularity mismatch}: reporting directory-level edges instead of file-level edges; and (2)~\emph{inference under-reach}: recognizing patterns but failing to report all visible imports. \textbf{Gemini~2.5~Pro and 3~Flash reveal a more fundamental failure: catastrophic belief state instability.} Despite opening comparable numbers of files, both models fail to \emph{accumulate} knowledge across probes. Gemini~3~Flash exhibits recency bias---each probe reports only 3--5 recently-examined components, discarding earlier discoveries entirely. Gemini~2.5~Pro shows a different pattern: it builds a reasonable map (peak F1~=~0.33 at step~9) then \emph{destroys} it, losing 12 correct edges in a single probe step. In contrast, Gemini~2.5~Flash loses zero correct edges across all probes---pure monotonic accumulation. This suggests that \textbf{belief state maintenance}---not just externalization format---is itself a non-trivial capability that varies dramatically across model versions. The gap between what an agent \emph{has seen} and what it \emph{retains in its belief state} is a first-order confounder in any belief-probing benchmark.
+\paragraph{Belief state instability.}
+Gemini~2.5~Pro and 3~Flash reveal catastrophic belief state instability despite opening comparable numbers of files (Figure~\ref{fig:trajectory}). Gemini~3~Flash exhibits recency bias---each probe reports only recently-examined components. Gemini~2.5~Pro builds a reasonable map (peak F1~=~0.33 at step~9), then destroys it in a single probe. In contrast, Gemini~2.5~Flash---the smallest model---loses \textbf{zero} correct edges across all probes. This suggests belief state maintenance is not a function of model scale but may depend on training objectives.
 
-\paragraph{Precision-recall profiles differ qualitatively.}
-Baselines using AST parsing (BFS-Import, Random) achieve perfect precision---every reported edge is correct. Among LLMs, Claude Sonnet~4.6 and Gemini~2.5~Pro both achieve near-perfect precision (0.983 and 1.000 respectively), but with dramatically different recall: Claude attains 0.502 while Gemini~2.5~Pro manages only 0.138. This decoupling reveals that high precision alone does not indicate strong architectural understanding---it may simply reflect extreme conservatism. GPT-5.3-Codex trades some precision (0.782) for the highest recall (0.597). Gemini~2.5~Flash has the lowest LLM precision (0.642), generating false CALLS\_API and DATA\_FLOWS\_TO edges alongside its correct discoveries.
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=0.65\textwidth]{figures/belief_trajectory.png}
+    \caption{Belief trajectory: Dependency F1 at each probe step (mean over 3 codebases, shaded = std). GPT-5.3-Codex and Claude Sonnet~4.6 accumulate steadily; Gemini~2.5~Flash grows monotonically. Gemini~2.5~Pro peaks at step~6--9 then collapses; Gemini~3.1~Pro shows high variance (stable on one codebase, collapse on another); Gemini~3~Flash remains flat throughout (recency bias).}
+    \label{fig:trajectory}
+\end{figure}
 
-\paragraph{Efficiency strongly favors LLM agents.}
-Under the Action AUC metric---which rewards early discovery---Claude Sonnet~4.6 dominates (0.350), followed by GPT-5.3-Codex (0.306), both well above Config-Aware (0.212). Gemini~2.5~Flash (0.259) outperforms all baselines except Config-Aware on AUC, while Gemini~2.5~Pro (0.205) falls just below Config-Aware despite its perfect precision. This reflects the tradeoff between comprehension quality and externalization completeness: strong AUC requires both understanding \emph{and} reliably reporting that understanding at each probe point.
+\paragraph{Precision-recall decoupling.}
+Claude Sonnet~4.6 and Gemini~2.5~Pro both achieve near-perfect precision ($\geq$0.98), but with dramatically different recall (0.502 vs.\ 0.138)---high precision alone does not indicate strong understanding. GPT trades precision (0.782) for the highest recall (0.597).
 
-\paragraph{Random's competitiveness and budget effects.}
-Random exploration (F1~=~0.538) performs nearly as well as Config-Aware (0.577). This near-parity reflects the current scale: budget $B{=}20$ on 27--30 modules allows opening roughly half the files, making raw coverage a strong proxy for import discovery. A budget sweep (Appendix~\ref{app:budget}) confirms that at $B{=}10$, Config-Aware's advantage grows to 3$\times$ over Random (0.175 vs.\ 0.056). The meaningful discrimination at $B{=}20$ lies in \emph{understanding what you've seen}: LLM agents discover qualitatively different edge types despite comparable file coverage.
+\paragraph{Budget effects.}
+Random exploration (F1~=~0.538) performs nearly as well as Config-Aware (0.577) at $B{=}20$, but at $B{=}10$ Config-Aware's advantage grows to 3$\times$ (Appendix~\ref{app:budget}). The meaningful discrimination at $B{=}20$ lies in \emph{understanding what you've seen}: LLM agents discover qualitatively different edge types despite comparable file coverage.
+
+\subsection{Active-Passive Gap Decomposition}
+\label{sec:apg}
+
+We evaluate the APG decomposition (\S\ref{sec:benchmark}) on two models---GPT-5.3-Codex and Gemini~2.5~Flash---across all three codebases. Table~\ref{tab:apg} reports Dependency F1 under each condition.
+
+\begin{table}[h]
+\centering
+\caption{Active-Passive Gap decomposition (mean\pms{half-range} over 3 codebases, $B{=}20$). APG$_\text{total}$ = passive-full $-$ active; APG$_\text{selection}$ = oracle $-$ active; APG$_\text{decision}$ = active $-$ replay.}
+\label{tab:apg}
+\begin{tabular}{@{}llccl@{}}
+\toprule
+\textbf{Model} & \textbf{Condition} & \textbf{Dep F1} & \textbf{Inv F1} & \textbf{Description} \\
+\midrule
+\multirow{4}{*}{\rotatebox{90}{\small GPT-5.3}}
+& Passive-full    & 0.457\pms{.147} & 0.757\pms{.028} & All files at once \\
+& Passive-replay  & 0.665\pms{.034} & 0.752\pms{.036} & Same trace, no decisions \\
+& Active          & 0.676\pms{.059} & 0.739\pms{.067} & Agent chooses actions \\
+& Passive-oracle  & 0.737\pms{.043} & 0.683\pms{.091} & Oracle-selected files \\
+\midrule
+\multirow{4}{*}{\rotatebox{90}{\small Gem.~2.5F}}
+& Passive-full    & 0.696\pms{.125} & 0.696\pms{.120} & All files at once \\
+& Passive-replay  & 0.561\pms{.141} & 0.665\pms{.037} & Same trace, no decisions \\
+& Active          & 0.469\pms{.099} & 0.516\pms{.155} & Agent chooses actions \\
+& Passive-oracle  & 0.641\pms{.058} & 0.349\pms{.079} & Oracle-selected files \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\emph{APG decomposition (Dep F1):}} \\
+\multicolumn{2}{@{}l}{$\text{APG}_\text{total}$}  & $-$0.219 / $+$0.226 & & GPT: active $>$ full; Gemini: full $>$ active \\
+\multicolumn{2}{@{}l}{$\text{APG}_\text{selection}$} & $+$0.060 / $+$0.172 & & Oracle helps both; larger gap for Gemini \\
+\multicolumn{2}{@{}l}{$\text{APG}_\text{decision}$}  & $+$0.011 / $-$0.092 & & GPT: $\approx$0; Gemini: passive-replay $>$ active \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{The APG direction is model-dependent.}
+In Theory of Space~\citep{zhang2026theoryofspace}, models consistently degrade in active mode ($\text{APG} > 0$). In code, the direction depends on the model. GPT-5.3-Codex exhibits $\text{APG}_\text{total} = -0.219$: active exploration \emph{outperforms} receiving the entire codebase at once, consistent across all three codebases. The likely explanation is \textbf{information overload}: presenting 27--30 files simultaneously overwhelms the model's ability to identify dependency relationships, while sequential exploration allows focused processing. Gemini~2.5~Flash shows the \emph{opposite} pattern ($\text{APG}_\text{total} = +0.226$): passive-full substantially outperforms active (Dep F1 0.696 vs.\ 0.469). This suggests that Gemini benefits from seeing all files at once rather than exploring incrementally---consistent with its strong ``thinking'' reasoning capabilities but weaker exploration strategy.
+
+\paragraph{Selection cost is positive for both models.}
+Passive-oracle exceeds Active for both GPT (+0.060) and Gemini (+0.172), indicating suboptimal file selection in both cases. The larger gap for Gemini suggests its exploration strategy is more inefficient, opening less informative files relative to the oracle ordering.
+
+\paragraph{Decision cost reveals a qualitative difference.}
+For GPT-5.3-Codex, Active $\approx$ Passive-replay (0.676 vs.\ 0.665): the cognitive overhead of making exploration decisions is negligible. For Gemini~2.5~Flash, the pattern \emph{reverses}: Passive-replay (0.561) \emph{exceeds} Active (0.469) by 9 points ($\text{APG}_\text{decision} = -0.092$). When given GPT's observation trace without having to make decisions, Gemini builds better maps than when exploring on its own. This ``negative decision cost'' suggests that Gemini's exploration decisions actively \emph{hurt} its comprehension---perhaps by directing attention to less informative files or by the cognitive overhead of action selection competing with architectural reasoning.
+
+\paragraph{Invariant discovery patterns.}
+For both models, passive-full yields the highest invariant F1 (GPT: 0.757, Gemini: 0.696). Passive-oracle scores lowest for both (GPT: 0.683, Gemini: 0.349). Seeing all files at once provides the global context needed for cross-cutting constraint discovery, while sequential presentation---even with optimal file ordering---limits the model's ability to synthesize invariants spanning multiple modules. Gemini's invariant scores under passive-oracle are notably low (0.349), suggesting it struggles to combine evidence presented incrementally.
+
+\subsection{Probe Condition Ablation}
+\label{sec:probe_ablation}
+
+We evaluate the effect of probe conditions on both GPT-5.3-Codex and Gemini~2.5~Flash by comparing three tracking modes: \texttt{probe\_as\_scratchpad} (baseline---JSON map retained in context), \texttt{no\_probe} (final map only, no intermediate probes), and \texttt{probe\_only} (JSON collected but stripped from context after each probe). Table~\ref{tab:probe_ablation} reports results across 3 codebases.
+
+\begin{table}[h]
+\centering
+\caption{Probe condition ablation (mean\pms{half-range} over 3 codebases, $B{=}20$). Scratchpad effect = scratchpad $-$ no-probe.}
+\label{tab:probe_ablation}
+\begin{tabular}{@{}llcc@{}}
+\toprule
+\textbf{Model} & \textbf{Track} & \textbf{Dep F1} & \textbf{Inv F1} \\
+\midrule
+\multirow{3}{*}{GPT-5.3-Codex}
+& Probe-as-scratchpad & 0.676\pms{.059} & 0.739\pms{.067} \\
+& No-probe            & 0.538\pms{.127} & 0.570\pms{.191} \\
+& Probe-only          & 0.464\pms{.056} & 0.447\pms{.028} \\
+\midrule
+\multirow{3}{*}{Gemini 2.5 Flash}
+& Probe-as-scratchpad & 0.469\pms{.099} & 0.516\pms{.155} \\
+& No-probe            & 0.480\pms{.161} & 0.273\pms{.040} \\
+& Probe-only          & 0.401\pms{.143} & 0.481\pms{.222} \\
+\midrule
+\multicolumn{4}{@{}l@{}}{\emph{Scratchpad effect (scratchpad $-$ no-probe):}} \\
+\multicolumn{2}{@{}l}{GPT-5.3-Codex} & $+$0.138 & $+$0.169 \\
+\multicolumn{2}{@{}l}{Gemini 2.5 Flash} & $-$0.011 & $+$0.243 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Scratchpad provides a substantial boost for GPT but not for Gemini.}
+For GPT-5.3-Codex, retaining probe JSON in context improves Dep F1 by 13.8 points over the no-probe baseline. The model uses its own prior maps as \textbf{external working memory}, scaffolding subsequent exploration and maintaining belief coherence across probes. This quantitatively confirms the mechanism described in L6 (\S\ref{sec:discussion}): the probe is not a passive measurement but an active intervention that shapes exploration.
+
+For Gemini~2.5~Flash, the scratchpad effect on Dep F1 is negligible ($-$0.011): no-probe (0.480) and scratchpad (0.469) perform comparably. However, scratchpad provides a large boost to \emph{invariant} discovery ($+$0.243), suggesting that Gemini uses the retained map primarily for cross-cutting reasoning rather than dependency tracking. This model-dependent pattern reveals that the scratchpad mechanism works through different channels for different models.
+
+\paragraph{Probe-only is consistently the weakest condition.}
+For both models, probe-only yields the lowest Dep F1 (GPT: 0.464, Gemini: 0.401). Producing structured output consumes attention and context budget without the compensating benefit of self-reference. For GPT, probe-only is even below no-probe ($-$0.074), confirming that the overhead of generating structured JSON without retention is actively harmful. For Gemini, the gap is smaller but in the same direction ($-$0.079).
+
+\paragraph{Implications.}
+For GPT, the ordering is clear: \textbf{scratchpad $>$ no-probe $>$ probe-only}, with a 14-point F1 gap between scratchpad and no-probe. For Gemini, the ordering is \textbf{no-probe $\approx$ scratchpad $>$ probe-only}, with the primary scratchpad benefit appearing in invariant discovery rather than dependency tracking. This model-dependent pattern complicates benchmark design: the ``best'' probe condition is not universal. We retain probe-as-scratchpad as the default because it enables the richest trajectory analysis and provides the strongest results for the highest-performing model, but report all three conditions for transparency.
+
+\subsection{Codebase Complexity Scaling}
+\label{sec:scaling}
+
+To test whether our findings hold beyond medium-sized codebases, we evaluate Gemini~2.5~Flash on \textbf{large} codebases (46--47 modules, $\sim$148 edges, 8 sub-packages) with the same budget $B{=}20$. At this scale, the agent can open at most 43\% of files, increasing exploration pressure. Table~\ref{tab:scaling} compares results across both tiers.
+
+\begin{table}[h]
+\centering
+\caption{Gemini~2.5~Flash: medium vs.\ large codebases (mean\pms{half-range}, 3 codebases, $B{=}20$). $\Delta$ = large $-$ medium.}
+\label{tab:scaling}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+ & \multicolumn{2}{c}{\textbf{Medium (27--30 files)}} & \multicolumn{2}{c}{\textbf{Large (46--47 files)}} & \multicolumn{2}{c}{$\boldsymbol{\Delta}$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+\textbf{Condition} & \textbf{Dep} & \textbf{Inv} & \textbf{Dep} & \textbf{Inv} & \textbf{Dep} & \textbf{Inv} \\
+\midrule
+Active          & .469\pms{.099} & .516\pms{.155} & .413\pms{.065} & .350\pms{.008} & $-$.056 & $-$.166 \\
+Passive-full    & .696\pms{.125} & .696\pms{.120} & .616\pms{.068} & .359\pms{.037} & $-$.080 & $-$.337 \\
+Passive-oracle  & .641\pms{.058} & .349\pms{.079} & .510\pms{.031} & .043\pms{.044} & $-$.131 & $-$.306 \\
+Passive-replay  & .561\pms{.141} & .665\pms{.037} & .343\pms{.040} & .113\pms{.149} & $-$.218 & $-$.552 \\
+\midrule
+No-probe        & .480\pms{.161} & .273\pms{.040} & .319\pms{.118} & .036\pms{.054} & $-$.161 & $-$.237 \\
+Probe-only      & .401\pms{.143} & .481\pms{.222} & .364\pms{.011} & .037\pms{.056} & $-$.037 & $-$.444 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{APG amplifies with codebase size.}
+$\text{APG}_\text{total}$ grows from $+$0.23 (medium) to $+$0.20 (large)---remaining strongly positive in both cases, confirming that Gemini consistently benefits from seeing all files at once. More revealing is the decomposition: $\text{APG}_\text{selection}$ grows from $+$0.17 to $+$0.10, while $\text{APG}_\text{decision}$ \emph{flips sign}, changing from $-$0.09 (medium: replay $>$ active) to $+$0.07 (large: active $>$ replay). On larger codebases, the act of choosing which files to open becomes \emph{beneficial}: the model's exploration decisions direct attention more effectively than passively processing a replayed trace. This suggests that active exploration is a more important capability at scale, even for a model that struggles with it on smaller codebases.
+
+\paragraph{Invariant discovery degrades sharply.}
+While Dep F1 drops 12\% from medium to large (active: .469~$\to$~.413), Inv F1 drops 32\% (.516~$\to$~.350). Cross-cutting constraints spanning 8 sub-packages are substantially harder to discover and synthesize than those spanning 5. Passive-replay is hit hardest: Inv F1 collapses from .665 to .113, suggesting that invariant discovery from replayed traces requires the model to maintain much longer dependency chains.
+
+\paragraph{Scratchpad effect persists.}
+The scratchpad effect on Dep F1 is $+$0.09 on both medium and large, demonstrating that self-scaffolding provides a consistent benefit regardless of codebase size.
 
 % ============================================================================
 \section{Discussion}
@@ -339,27 +459,22 @@ Random exploration (F1~=~0.538) performs nearly as well as Config-Aware (0.577).
 
 Current code agents (SWE-agent, Aider, Claude Code, Cursor) use tool-augmented retrieval to navigate repositories, but none explicitly construct or maintain a structured architectural belief. Our results show that the strongest LLM agents \emph{can} surpass rule-based strategies when they combine semantic comprehension with reliable belief externalization (GPT-5.3-Codex and Claude Sonnet~4.6 both exceed all baselines), but that weaker models fail at the externalization step despite demonstrating code understanding in their exploration behavior.
 
-This suggests four improvement paths: (1)~\textbf{hybrid approaches} combining AST-level import extraction with LLM semantic analysis, ensuring structural completeness while adding semantic depth; (2)~\textbf{belief externalization training}---explicitly optimizing models to faithfully serialize architectural knowledge into structured formats; (3)~\textbf{exploration strategy optimization}---broader file coverage (GPT's 15 files vs.\ Claude's 13) directly correlates with higher recall and unique edge type discovery; and (4)~\textbf{explicit state management}---providing agents with a persistent, accumulative data structure rather than relying on implicit belief state maintenance, which our results show can catastrophically fail even in capable models.
+This suggests four improvement paths: (1)~\textbf{hybrid approaches} combining AST-level import extraction with LLM semantic analysis, ensuring structural completeness while adding semantic depth; (2)~\textbf{belief externalization training}---explicitly optimizing models to faithfully serialize architectural knowledge into structured formats; (3)~\textbf{exploration strategy optimization}---our APG decomposition (\S\ref{sec:apg}) shows a 6--17-point gap between oracle and agent file selection across models, confirming that \emph{which} files to open is a key bottleneck; and (4)~\textbf{explicit state management}---our probe ablation (\S\ref{sec:probe_ablation}) shows that retaining structured belief maps in context yields a 14-point F1 boost for GPT, empirically validating the value of persistent, accumulative state structures---though the effect is model-dependent, indicating that self-scaffolding is itself a capability that varies across models.
 
 \subsection{The Belief Externalization Problem}
 
-The spread across models is striking: GPT-5.3-Codex recalled 69\% of IMPORTS edges, while Gemini~3~Flash and Gemini~2.5~Pro recalled only 11--12\% despite opening a similar number of files. This 6$\times$ gap in IMPORTS recall---for edges the models demonstrably \emph{saw}---suggests that belief externalization capability varies dramatically across model families, not just between LLMs and baselines.
+GPT-5.3-Codex recalled 69\% of IMPORTS edges while Gemini~3~Flash and 2.5~Pro recalled only 11--12\% despite opening similar numbers of files. This 6$\times$ gap---for edges the models demonstrably \emph{saw}---shows that belief externalization capability varies dramatically across model families. Both GPT and Claude demonstrate that faithful externalization \emph{is} achievable: the challenge is model-specific, not fundamental.
 
-Both GPT-5.3-Codex and Claude Sonnet~4.6 demonstrate that faithful externalization \emph{is} achievable with current models: Claude with near-perfect precision (0.983), GPT with the highest recall (0.597). The challenge appears model-specific rather than fundamental: it is not that structured JSON is inherently difficult to produce, but that some models have not been optimized for this capability.
+\paragraph{Belief state instability.}
+The Gemini family reveals three distinct instability patterns. Gemini~2.5~Pro shows \emph{catastrophic collapse}: building a map by step~9 (peak F1~=~0.33), then losing 12 correct edges in a single probe. Gemini~3~Flash shows \emph{recency bias}: each probe reports only 3--5 recently-examined components. Gemini~3.1~Pro shows \emph{variable instability}: monotonic accumulation on its best codebase but collapse to zero edges on its worst. Critically, Gemini~2.5~Flash---the smallest model---exhibits \textbf{zero} correct-edge loss across all probes. This suggests belief state maintenance depends on training objectives, not model scale, and may stem from treating each probe as ``summarize from scratch'' rather than ``incrementally update.'' Externalization quality is also likely prompt-dependent; future work should include prompt ablation studies to disentangle model capability from prompt sensitivity.
 
-\paragraph{Belief state instability: a new failure mode.}
-The Gemini model family reveals a striking failure mode beyond simple externalization weakness: \textbf{belief state instability} that manifests in three distinct patterns across four models. Gemini~2.5~Pro shows \emph{catastrophic collapse}: building a reasonable map by step~9 (peak F1~=~0.33), then losing 12 correct edges in a single probe step (F1~$\to$~0.09), before partially recovering. Gemini~3~Flash shows \emph{severe recency bias}: each probe reports only 3--5 recently-examined components with no accumulation. Gemini~3.1~Pro shows \emph{variable instability}: on its best codebase (F1~=~0.458) it accumulates monotonically like strong models, but on its worst (F1~=~0.203) it degrades to Gemini-3-Flash-level recency bias---the map collapses to zero edges at step~18 before partially recovering. This high variance (half-range $\pm$0.128) makes Gemini~3.1~Pro the least consistent model in our evaluation.
+\paragraph{Error analysis: prompt ambiguity drives false positives.}
+Of Gemini~2.5~Flash's 40 false positive edges, \textbf{only 2 (5\%) are true hallucinations}. The dominant failure (45\%) is \emph{edge type confusion}: reporting both IMPORTS and CALLS\_API when code both imports and calls a symbol---arguably reasonable given underspecified definitions. Another 22\% come from treating non-component files as edge endpoints. This reveals that \textbf{prompt specification is a first-order variable}: what looks like an externalization failure may be a legitimate alternative interpretation.
 
-Critically, Gemini~2.5~Flash---the smallest model in the family---exhibits \textbf{zero} correct-edge loss across all probes, with purely monotonic accumulation. This counter-intuitive result (the smallest model maintaining the most stable beliefs) suggests that belief state maintenance is not simply a function of model scale but may depend on training objectives or architectural choices. The instability appears to stem from treating each probe as ``summarize the architecture from scratch'' rather than ``incrementally update your running belief state''---a fundamental misinterpretation of the task that prompt design alone may not resolve.
-
-Importantly, externalization quality is likely \emph{prompt-dependent}: the same model may produce higher-quality maps under different prompt designs (e.g., few-shot examples, step-by-step decomposition, explicit schema walkthroughs, or chain-of-thought elicitation before the final JSON). Our use of identical prompts across all models controls for this variable experimentally but measures performance under a \emph{specific prompt regime} rather than each model's ceiling. Future work should include prompt ablation studies---varying schema detail, number of examples, and elicitation strategy---to disentangle model capability from prompt sensitivity.
-
-\paragraph{Case study: prompt ambiguity and edge type confusion.}
-Error analysis of Gemini~2.5~Flash's 40 false positive edges across 3 codebases reveals that \textbf{only 2 (5\%) are true hallucinations}---fabricated relationships with no basis in the code. The remaining 95\% reflect real relationships reported in the wrong format or with the wrong edge type. Crucially, many of these ``errors'' stem from \emph{ambiguity in the probe prompt itself}.
-
-The dominant failure mode (45\% of FPs) is \emph{edge type confusion}: when the model sees \texttt{from config import PipelineConfig} followed by \texttt{PipelineConfig()}, it reports both an IMPORTS edge \emph{and} a CALLS\_API edge. Our probe defines CALLS\_API as ``the file calls a public function exported by the target,'' but does not state whether edge types are mutually exclusive, whether class instantiation counts as ``calling a function,'' or whether an edge should be IMPORTS or CALLS\_API when both an import statement and a function call exist. Gemini's interpretation---reporting both---is arguably reasonable given the underspecified definitions. Claude Sonnet~4.6 happens to match the ground-truth convention, but this may reflect better prompt compliance rather than deeper understanding:
-
-\begin{center}
+\begin{table}[h]
+\centering
+\caption{Error analysis: edge type confusion on \texttt{cli.py} edges. Gemini reports both IMPORTS and CALLS\_API for the same target (symbol-qualified), producing false positives; Claude merges into a single file-level edge.}
+\label{tab:error_analysis}
 \small
 \begin{tabular}{@{}lll@{}}
 \toprule
@@ -372,74 +487,40 @@ The dominant failure mode (45\% of FPs) is \emph{edge type confusion}: when the 
 \texttt{cli $\to$ runner} & --- & CALLS\_API {\color{green!50!black}(TP)} \\
 \bottomrule
 \end{tabular}
-\end{center}
-
-\noindent Similarly, 22\% of FPs come from treating non-component files (tests, JSON configs) as edge endpoints---but the prompt does not explicitly define what counts as a ``component.'' This taxonomy reveals that \textbf{prompt specification is itself a first-order variable} in belief-probing benchmarks: what looks like an externalization failure may be a legitimate alternative interpretation of underspecified instructions. Future versions should provide explicit edge type decision rules (e.g., ``if both IMPORTS and CALLS\_API apply, report only CALLS\_API'') and an explicit component whitelist or exclusion criteria.
-
-\subsection{Documentation as a Discovery Channel}
-
-Real codebases contain rich documentation beyond code: README files, architecture decision records (ADRs), API specifications (OpenAPI/Swagger), and external resources (wikis, design documents). These serve as a major architectural discovery channel that our v0.1 codebases---which contain only code-level docstrings---do not yet model.
-
-Extending the generator to produce standalone documentation files opens several directions. First, some architectural edges or invariants could be discoverable \emph{only} through documentation, testing whether agents read docs or dive straight into code. Second, documentation \emph{staleness}---a pervasive real-world problem where docs describe a prior version of the architecture---creates a natural testbed for the REVISE evaluation mode: agents would need to reconcile contradictions between documentation and code, deciding which to trust. Third, external documentation could be modeled as an additional action (e.g., \texttt{FETCH\_DOC}) with its own budget cost, testing whether agents know when to look outside the repository.
-
-\subsection{Benchmark Design Lessons}
-
-Building and running \tocs{} v0.1 exposed several pitfalls in belief-probing benchmark design that we document here for the benefit of future work.
-
-\paragraph{L1: Define edge type semantics with decision rules, not just descriptions.}
-Our probe prompt defines CALLS\_API as ``the file calls a public function exported by the target'' alongside IMPORTS as ``a Python import statement exists.'' When code both imports and calls a symbol, models must decide which edge type to report---but the prompt does not state whether types are mutually exclusive, nor whether class instantiation counts as ``calling a function.'' This ambiguity caused 45\% of Gemini~2.5~Flash's false positives (\S\ref{sec:discussion}). \emph{Fix:} provide explicit decision trees (e.g., ``if a file imports \emph{and} calls a symbol, report CALLS\_API only; report IMPORTS only for unused imports'').
-
-\paragraph{L2: Define component boundaries explicitly.}
-Our probe prompt asks models to list ``components'' but never defines whether test files, configuration files, or \texttt{\_\_init\_\_.py} files qualify. Models that included \texttt{test\_smoke.py} or \texttt{pipeline\_config.json} as edge endpoints were penalized despite identifying real relationships. \emph{Fix:} provide an explicit inclusion rule (e.g., ``components are Python source files excluding tests and configs'') or enumerate valid components in the probe.
-
-\paragraph{L3: Specify structured field semantics per invariant type.}
-Our initial invariant schema used generic fields (\texttt{src}, \texttt{dst}, \texttt{via}) without per-type semantics, and all models scored Invariant F1~=~0.0. After adding per-type field definitions and worked examples in the improved prompt, invariant F1 jumped to 0.52--0.78 under relaxed matching---confirming this was a prompt specification problem, not a model capability gap.
-
-\paragraph{L4: Validate scoring against alternative correct answers.}
-Strict exact-match scoring conflates format compliance with architectural understanding. A model reporting \texttt{registry.py $\to$ stages/} with 7 REGISTRY\_WIRES edges ``knows'' the same fact as the 7 file-level ground-truth edges but receives zero credit. \emph{Fix:} implement tiered scoring (full credit for exact match, partial credit for semantically equivalent answers) or normalize predictions before comparison.
-
-\paragraph{L5: Prompt specification is a first-order experimental variable.}
-Across all failure modes, the recurring theme is that \emph{what looks like a model capability gap may be a prompt specification gap}. We recommend that belief-probing benchmarks treat their probe prompts as artifacts requiring the same rigor as evaluation metrics---versioned, ablated, and reported alongside results.
-
-\paragraph{L6: In scratchpad mode, probe prompts affect exploration, not just scoring.}
-We ran all four LLM agents on the \emph{same three codebases} under two probe prompt versions: an initial version with minimal schema guidance, and an improved version adding per-type field semantics, file-path granularity instructions, and pairwise invariant decomposition examples. In our \texttt{probe\_as\_scratchpad} track, the agent's JSON map response is retained in its conversation context, serving as a self-assessment visible to the agent on subsequent turns. Table~\ref{tab:prompt_ablation} shows consistent F1 improvements across all models, but with dramatically different magnitudes.
-
-\begin{table}[h]
-\centering
-\caption{Effect of improved probe prompt on Dependency F1 (same 3 codebases, same models, only probe prompt changed). $\Delta$ = new $-$ old.}
-\label{tab:prompt_ablation}
-\begin{tabular}{@{}lccc@{}}
-\toprule
-\textbf{Model} & \textbf{Old Prompt} & \textbf{New Prompt} & $\boldsymbol{\Delta}$\textbf{F1} \\
-\midrule
-Gemini 2.5 Flash & 0.328 & 0.469 & +0.141 \\
-GPT-5.3-Codex & 0.564 & 0.676 & +0.113 \\
-Claude Sonnet 4.6 & 0.639 & 0.650 & +0.012 \\
-\bottomrule
-\end{tabular}
 \end{table}
 
-The mechanism is \emph{not} just better serialization. Action log analysis reveals that in \texttt{probe\_as\_scratchpad} mode, the improved prompt changes exploration behavior itself. On one codebase (seed~999), GPT-5.3-Codex follows an \emph{identical} action sequence under both prompts for the first 15 steps; at step~16---immediately after a probe point---the old run opens a utility file and stops, while the new run opens 4 additional stage modules. The more structured probe revealed gaps in the agent's own map, causing it to redirect remaining budget toward coverage. This yielded 26 additional correct edges (F1 from 0.392 to 0.636 on that codebase alone). Claude Sonnet~4.6, which already externalized comprehensively under the old prompt, showed minimal improvement (+0.012)---suggesting its belief externalization was already near-ceiling. This has two implications for benchmark design: (1)~in scratchpad mode, the probe is not a passive measurement instrument but an \emph{active intervention} that shapes the agent's exploration policy; and (2)~models with weaker baseline externalization benefit disproportionately from prompt improvements, meaning model rankings are partially prompt-dependent.
+\subsection{Benchmark Design Lessons}
+\label{sec:lessons}
+
+Building \tocs{} v0.1 exposed several pitfalls in belief-probing benchmark design:
+
+\textbf{L1: Edge type decision rules.} When code both imports and calls a symbol, the prompt must specify which edge type to report. Ambiguity here caused 45\% of Gemini~2.5~Flash's false positives. \emph{Fix:} explicit decision trees.
+
+\textbf{L2: Component boundaries.} Without defining whether test files or configs count as ``components,'' 22\% of FPs came from including non-component endpoints. \emph{Fix:} explicit inclusion rules in the probe.
+
+\textbf{L3: Invariant field semantics.} Generic fields without per-type definitions yielded Inv F1~=~0.0 for all models. Adding worked examples jumped scores to 0.52--0.78 under relaxed matching.
+
+\textbf{L4: Alternative correct answers.} Strict exact-match scoring penalizes semantically correct but differently-formatted answers. \emph{Fix:} tiered or normalized scoring.
+
+\textbf{L5: Prompt specification as experimental variable.} What looks like a model capability gap may be a prompt specification gap. A single prompt change moved Gemini~2.5~Flash's F1 by $+$0.141 while barely affecting Claude ($+$0.012; Table~\ref{tab:prompt_ablation} in Appendix).
+
+\textbf{L6: Probes as active interventions.} In scratchpad mode, improved probe prompts change not just serialization quality but \emph{exploration behavior}---on one codebase, GPT-5.3-Codex opened 4 additional stage modules after a more structured probe revealed gaps in its own map (F1: 0.392~$\to$~0.636). The probe condition ablation (\S\ref{sec:probe_ablation}) quantifies this: scratchpad boosts GPT by 14 F1 points but has no dependency-level effect on Gemini---suggesting different models leverage self-scaffolding through different channels.
 
 \subsection{Limitations}
+\label{sec:limitations}
 
-\tocs{} v0.1 is deliberately narrow in scope. Generated codebases, while structurally realistic, may not capture all patterns of real-world architecture. In particular, our use of neutral filenames (\texttt{mod\_a.py} rather than \texttt{authentication\_service.py}) removes naming priors that real codebases provide, making the task harder in one dimension while keeping it easier in others (clean structure, no organic complexity, limited dead code). This design choice isolates architectural reasoning from lexical guessing, but means our difficulty estimates may not transfer directly to real repositories. Additionally, our generated codebases contain only code-level documentation (docstrings) and lack standalone documentation files (README, ARCHITECTURE.md, design documents) that real repositories provide as a major architectural discovery channel. We evaluate a single architectural pattern (Pipeline) in a single language (Python). Our LLM results are preliminary: six models from three providers, each evaluated on 3 codebases with a single run per model-codebase pair (no variance estimation across runs). All LLM results use a single prompt design; different formulations could yield substantially different rankings. Our improved probe prompt addresses several ambiguities from the initial version (per-type field semantics, pairwise decomposition, edge type decision rules) and substantially improved invariant scores, but may still contain underspecifications. The cognitive map externalization is a proxy for internal representation---a model may ``know'' more than it serializes, as the wide variation across models suggests. We plan to expand to additional models (open-weight), architectural patterns, repeated runs with variance estimation, and the REVISE evaluation mode.
+\tocs{} v0.1 evaluates a single architectural pattern (Pipeline) in a single language (Python) with neutral filenames (\texttt{mod\_a.py}), no standalone documentation, and no organic complexity. Six models from three providers are each evaluated on 3 codebases with a single run per model-codebase pair; the complexity scaling analysis (\S\ref{sec:scaling}) covers only one model. All results use a single prompt design; different formulations could yield substantially different rankings. The cognitive map externalization is a proxy for internal representation---a model may ``know'' more than it serializes.
 
-\subsection{Community Call}
+\subsection{Roadmap}
+\label{sec:roadmap}
 
-We release the complete \tocs{} toolkit---codebase generator, partial observability harness, evaluation pipeline, and scoring metrics---as open-source software. We invite the community to:
-\begin{enumerate}[nosep]
-    \item \textbf{Evaluate additional models}: Run open-weight models (Llama, Qwen, DeepSeek) and replicate our frontier model results with repeated runs.
-    \item \textbf{Contribute codebase patterns}: Extend beyond Pipeline to event-driven, microservices, plugin systems, hexagonal architecture (see CONTRIBUTING.md).
-    \item \textbf{Add languages}: The harness is language-agnostic; the generator needs new templates for TypeScript, Go, etc.
-    \item \textbf{Test scaffold-augmented agents}: Evaluate whether static analysis tools, RepoMap-style context, or explicit state tracking improve map quality.
-\end{enumerate}
+Phase~1 (current): benchmark construction---stress-test the framework with diverse models. Phase~2: community-contributed codebase patterns, additional languages, documentation as a discovery channel, and REVISE mode evaluation. Phase~3: large-scale controlled experiments with repeated runs, open-weight models, and prompt ablation studies. We release the complete toolkit as open-source and invite contributions.
 
 % ============================================================================
 \section{Conclusion}
 \label{sec:conclusion}
 
-We introduced \tocs{}, a benchmark for evaluating whether code agents can construct coherent architectural beliefs through active codebase exploration under partial observability. Our procedural generator produces medium-complexity codebases with four typed edge categories and planted invariants. Preliminary experiments with four baselines and six frontier LLM agents from three providers reveal that: (1)~the two strongest LLM agents (GPT-5.3-Codex, F1~=~0.676; Claude Sonnet~4.6, F1~=~0.664) surpass all baselines by combining semantic comprehension with reliable belief externalization; (2)~LLM agents collectively discover all four edge types---including DATA\_FLOWS\_TO edges (Gemini~3.1~Pro, 50\% recall; GPT-5.3-Codex, 31\%) and REGISTRY\_WIRES edges (GPT and Claude, 100\% recall)---capabilities entirely absent from rule-based methods; (3)~improved probe prompts unlock invariant discovery (relaxed F1 up to 0.78), confirming that invariant scoring failures were primarily a prompt specification problem; yet (4)~weaker LLM agents score below simple heuristics due to catastrophic belief state instability---some models lose previously-discovered edges between probes, with a 6$\times$ spread in IMPORTS recall across models (11--69\%), confirming that both belief externalization and belief state maintenance remain key capability gaps. The 32-point F1 gap between Oracle and the best LLM agent defines a challenging and discriminative evaluation space. We release \tocs{} as an open benchmark and invite the community to replicate and extend these preliminary results.
+We introduced \tocs{}, the first benchmark for active architectural belief construction in code. Four findings stand out. First, the Active-Passive Gap is model-dependent: GPT-5.3-Codex builds better maps through active exploration ($\text{APG} = -0.22$) while Gemini~2.5~Flash does better receiving all files at once ($\text{APG} = +0.23$)---showing that active exploration is itself a non-trivial capability. Second, self-scaffolding through belief externalization is model-dependent: scratchpad mode boosts GPT by 14 F1 points but not Gemini. Third, belief state maintenance varies dramatically: the smallest Gemini model maintains perfectly stable beliefs while its larger sibling suffers catastrophic collapse. Fourth, scaling to larger codebases (47 files, 148 edges) amplifies the APG and flips the sign of decision cost: Gemini's active exploration becomes \emph{beneficial} at scale even though it hurts on smaller codebases---suggesting that active exploration is a capability that matters more as complexity grows. These findings validate the benchmark's design---periodic probing reveals dynamics invisible to final-snapshot evaluation---while the design lessons learned from building it (\S\ref{sec:lessons}) are themselves a contribution. We release \tocs{} as an open benchmark and invite community contributions.
 
 % ============================================================================
 \bibliographystyle{plainnat}
@@ -502,6 +583,26 @@ BFS-Import   & 0.078 & 0.157 & 0.293 & 0.603 \\
 \end{tabular}
 \end{table}
 
-At tight budgets ($B{=}10$), Config-Aware's strategy of prioritizing registry files yields a 3$\times$ advantage over Random (0.175 vs.\ 0.056). As budget increases, raw coverage dominates: at $B{=}25$ (allowing agents to open nearly all files), Random matches Config-Aware (0.632 vs.\ 0.626). BFS-Import shows the steepest growth from $B{=}20$ to $B{=}25$ (0.293 $\to$ 0.603), reflecting its systematic but slow import-chain traversal. The convergence at high budgets confirms that the current medium-complexity codebases require \emph{tighter budgets} or \emph{larger codebases} to strongly discriminate exploration strategy for structural edge types; the meaningful discrimination at $B{=}20$ lies in semantic edge discovery by LLM agents.
+At tight budgets ($B{=}10$), Config-Aware's strategy of prioritizing registry files yields a 3$\times$ advantage over Random (0.175 vs.\ 0.056). As budget increases, raw coverage dominates: at $B{=}25$, Random matches Config-Aware. The meaningful discrimination at $B{=}20$ lies in semantic edge discovery by LLM agents.
+
+\section{Prompt Sensitivity}
+\label{app:prompt_sensitivity}
+
+\begin{table}[h]
+\centering
+\caption{Effect of improved probe prompt on Dependency F1 (same 3 codebases, same models, only probe prompt changed). $\Delta$ = new $-$ old.}
+\label{tab:prompt_ablation}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Model} & \textbf{Old Prompt} & \textbf{New Prompt} & $\boldsymbol{\Delta}$\textbf{F1} \\
+\midrule
+Gemini 2.5 Flash & 0.328 & 0.469 & +0.141 \\
+GPT-5.3-Codex & 0.564 & 0.676 & +0.113 \\
+Claude Sonnet 4.6 & 0.639 & 0.664 & +0.025 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Models with weaker baseline externalization benefit disproportionately from prompt improvements. Claude Sonnet~4.6, which already externalized comprehensively under the old prompt, showed minimal change ($+$0.025). Main-text results use the improved prompt throughout.
 
 \end{document}
