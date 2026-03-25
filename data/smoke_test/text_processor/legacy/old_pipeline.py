@@ -7,6 +7,8 @@ The new pipeline uses a stage-based architecture with
 registry-driven stage resolution (see runner.py and registry.py).
 """
 
+from ..models import *  # noqa: F401,F403
+
 # NOTE: This entire module is dead code.
 # It was the original implementation before the refactor to
 # the current stage-based architecture.

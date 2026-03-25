@@ -8,6 +8,7 @@ from ..models import LemmatizedDocument, VectorizedDocument
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageVectorizeStage(StageBase):
     """Pipeline stage: converts token sequences to tf-idf or embedding vectors"""
 

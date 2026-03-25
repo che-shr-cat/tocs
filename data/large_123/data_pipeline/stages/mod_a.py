@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import RawRecord, IngestedRecord
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_p import validate_schema
+
 
 class StageIngestStage(StageBase):
     """Pipeline stage: reads raw input, parses format, emits typed records"""
@@ -16,6 +18,7 @@ class StageIngestStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: RawRecord -> IngestedRecord."""
+        validate_schema(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import FilteredDocument, LemmatizedDocument
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_p import validate_integrity
+
 
 class StageLemmatizeStage(StageBase):
     """Pipeline stage: reduces tokens to lemma forms using morphological analysis"""
@@ -16,6 +18,7 @@ class StageLemmatizeStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: FilteredDocument -> LemmatizedDocument."""
+        validate_integrity(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

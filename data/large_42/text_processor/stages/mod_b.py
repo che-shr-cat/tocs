@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import TokenizedDocument, NormalizedDocument
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_o import validate_schema
+
 
 class StageNormalizeStage(StageBase):
     """Pipeline stage: lowercases, applies unicode normalization, strips accents"""
@@ -16,6 +18,7 @@ class StageNormalizeStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: TokenizedDocument -> NormalizedDocument."""
+        validate_schema(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

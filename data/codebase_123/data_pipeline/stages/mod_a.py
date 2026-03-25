@@ -8,6 +8,7 @@ from ..models import RawRecord, IngestedRecord
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageIngestStage(StageBase):
     """Pipeline stage: reads raw input, parses format, emits typed records"""
 

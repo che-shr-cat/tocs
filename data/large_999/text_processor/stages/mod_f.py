@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import VectorizedDocument, ClassifiedDocument
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_q import validate_range
+
 
 class StageClassifyStage(StageBase):
     """Pipeline stage: assigns topic and category labels using trained classifier"""
@@ -16,6 +18,7 @@ class StageClassifyStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: VectorizedDocument -> ClassifiedDocument."""
+        validate_range(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

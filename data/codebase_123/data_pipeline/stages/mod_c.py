@@ -8,6 +8,7 @@ from ..models import NormalizedRecord, DeduplicatedRecord
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageDeduplicateStage(StageBase):
     """Pipeline stage: removes exact and fuzzy duplicate records by key fields"""
 

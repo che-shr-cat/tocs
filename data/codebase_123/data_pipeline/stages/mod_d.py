@@ -8,6 +8,7 @@ from ..models import DeduplicatedRecord, EnrichedRecord
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageEnrichStage(StageBase):
     """Pipeline stage: joins external lookup data (e.g., geo-ip, currency rates)"""
 

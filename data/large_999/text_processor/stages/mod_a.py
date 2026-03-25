@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import RawDocument, TokenizedDocument
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_o import validate_schema
+
 
 class StageTokenizeStage(StageBase):
     """Pipeline stage: splits text into sentences and tokens with position offsets"""
@@ -16,6 +18,7 @@ class StageTokenizeStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: RawDocument -> TokenizedDocument."""
+        validate_schema(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

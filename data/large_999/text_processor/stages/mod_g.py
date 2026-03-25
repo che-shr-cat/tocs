@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import ClassifiedDocument, SummarizedDocument
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_r import validate_business_rule
+
 
 class StageSummarizeStage(StageBase):
     """Pipeline stage: generates extractive summaries from classified documents"""
@@ -16,6 +18,7 @@ class StageSummarizeStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: ClassifiedDocument -> SummarizedDocument."""
+        validate_business_rule(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

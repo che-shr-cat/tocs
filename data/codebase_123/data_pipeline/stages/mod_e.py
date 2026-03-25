@@ -8,6 +8,7 @@ from ..models import EnrichedRecord, TransformedRecord
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageTransformStage(StageBase):
     """Pipeline stage: derives computed fields, converts types, applies business logic"""
 

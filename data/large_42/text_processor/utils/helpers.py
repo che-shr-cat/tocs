@@ -5,6 +5,8 @@ import functools
 import time
 from typing import Any, Callable
 
+from ..config import PipelineConfig
+
 
 def setup_logging(level: str = "INFO") -> None:
     """Configure pipeline-wide logging."""

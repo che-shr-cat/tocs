@@ -143,7 +143,7 @@ def _generate_source(spec: ModuleSpec, blueprint: PatternBlueprint) -> str:
     elif role == "registry":
         return _gen_registry(spec, blueprint)
     elif role == "stage":
-        return _gen_stage(spec)
+        return _gen_stage(spec, blueprint)
     elif role == "adapter":
         return _gen_adapter(spec)
     elif role == "middleware":
@@ -169,7 +169,7 @@ def _generate_source(spec: ModuleSpec, blueprint: PatternBlueprint) -> str:
     elif role == "serializer":
         return _gen_serializer(spec)
     elif role == "factory":
-        return _gen_factory(spec)
+        return _gen_factory(spec, blueprint)
     else:
         return f'"""Module: {spec.filepath} (role={role})"""\n'
 
@@ -238,40 +238,44 @@ def _gen_models(spec: ModuleSpec) -> str:
 
 def _gen_base(spec: ModuleSpec) -> str:
     """Generate base.py with StageBase ABC."""
-    return textwrap.dedent('''\
-        """Abstract base class for pipeline stages."""
+    has_types = any("types" in imp for imp in spec.imports_from)
+    types_import = "from .types import StageProtocol\n" if has_types else ""
 
-        from abc import ABC, abstractmethod
-        from typing import Any
-
-        from .models import BaseModel
-
-
-        class StageBase(ABC):
-            """All pipeline stages must inherit from this class.
-
-            Provides a uniform interface for the registry and middleware.
-            """
-
-            name: str = ""
-
-            @abstractmethod
-            def process(self, data: list[Any], config: Any) -> list[Any]:
-                """Process a batch of records.
-
-                Args:
-                    data: Input records (typed per stage).
-                    config: PipelineConfig instance.
-
-                Returns:
-                    Transformed records.
-                """
-                ...
-
-            def validate_input(self, data: list[Any]) -> bool:
-                """Optional input validation hook."""
-                return len(data) > 0
-    ''')
+    return (
+        '"""Abstract base class for pipeline stages."""\n'
+        "\n"
+        "from abc import ABC, abstractmethod\n"
+        "from typing import Any\n"
+        "\n"
+        "from .models import BaseModel\n"
+        f"{types_import}"
+        "\n"
+        "\n"
+        "class StageBase(ABC):\n"
+        '    """All pipeline stages must inherit from this class.\n'
+        "\n"
+        "    Provides a uniform interface for the registry and middleware.\n"
+        '    """\n'
+        "\n"
+        '    name: str = ""\n'
+        "\n"
+        "    @abstractmethod\n"
+        "    def process(self, data: list[Any], config: Any) -> list[Any]:\n"
+        '        """Process a batch of records.\n'
+        "\n"
+        "        Args:\n"
+        "            data: Input records (typed per stage).\n"
+        "            config: PipelineConfig instance.\n"
+        "\n"
+        "        Returns:\n"
+        "            Transformed records.\n"
+        '        """\n'
+        "        ...\n"
+        "\n"
+        "    def validate_input(self, data: list[Any]) -> bool:\n"
+        '        """Optional input validation hook."""\n'
+        "        return len(data) > 0\n"
+    )
 
 
 def _gen_config(spec: ModuleSpec) -> str:
@@ -397,7 +401,7 @@ def _gen_registry(spec: ModuleSpec, blueprint: PatternBlueprint) -> str:
     ''')
 
 
-def _gen_stage(spec: ModuleSpec) -> str:
+def _gen_stage(spec: ModuleSpec, blueprint: PatternBlueprint | None = None) -> str:
     """Generate a pipeline stage module."""
     func = spec.generation_hints.get("function_name", "process")
     in_type = spec.generation_hints.get("input_type", "Any")
@@ -405,54 +409,89 @@ def _gen_stage(spec: ModuleSpec) -> str:
     desc = spec.generation_hints.get("description", spec.purpose)
     stage_name = spec.generation_hints.get("stage_name", "stage")
 
-    return textwrap.dedent(f'''\
-        """{desc}"""
+    # Find validator CALLS_API edges from this stage
+    validator_imports = []
+    validator_calls = []
+    if blueprint:
+        for src, tgt, etype in blueprint.dependency_edges:
+            if src == spec.filepath and etype == "CALLS_API":
+                tgt_spec = blueprint.modules.get(tgt)
+                if tgt_spec and tgt_spec.role == "validator":
+                    mod_name = tgt.replace(".py", "").split("/")[-1]
+                    export = tgt_spec.exports[0] if tgt_spec.exports else f"validate_{mod_name}"
+                    validator_imports.append(
+                        f"from ..validators.{mod_name} import {export}"
+                    )
+                    validator_calls.append(f"        {export}(data, config)")
 
-        from typing import Any
+    val_import_block = "\n".join(validator_imports)
+    if val_import_block:
+        val_import_block = "\n" + val_import_block
 
-        from ..base import StageBase
-        from ..exceptions import StageError, ValidationError
-        from ..models import {in_type}, {out_type}
-        from ..utils.helpers import log_stage, timed
+    val_call_block = ""
+    if validator_calls:
+        val_call_block = "\n".join(validator_calls) + "\n"
 
-
-        class {stage_name.title().replace("_", "")}Stage(StageBase):
-            """Pipeline stage: {desc.lower()}"""
-
-            name = "{stage_name}"
-
-            @timed
-            def process(self, data: list[Any], config: Any) -> list[Any]:
-                """Process batch: {in_type} -> {out_type}."""
-                log_stage(self.name, len(data))
-                results = []
-                for record in data:
-                    results.append(self._{func}_one(record, config))
-                return results
-
-            def _{func}_one(self, record: {in_type}, config: Any) -> {out_type}:
-                """Process a single record."""
-                return {out_type}(id=record.id, data=record.data)
-
-
-        def {func}(data: list[{in_type}], config: Any) -> list[{out_type}]:
-            """Functional interface for {stage_name}."""
-            stage = {stage_name.title().replace("_", "")}Stage()
-            return stage.process(data, config)
-    ''')
+    return (
+        f'"""{desc}"""\n'
+        "\n"
+        "from typing import Any\n"
+        "\n"
+        "from ..base import StageBase\n"
+        "from ..exceptions import StageError, ValidationError\n"
+        f"from ..models import {in_type}, {out_type}\n"
+        f"from ..utils.helpers import log_stage, timed\n"
+        f"{val_import_block}\n"
+        "\n"
+        "\n"
+        f'class {stage_name.title().replace("_", "")}Stage(StageBase):\n'
+        f'    """Pipeline stage: {desc.lower()}"""\n'
+        "\n"
+        f'    name = "{stage_name}"\n'
+        "\n"
+        "    @timed\n"
+        "    def process(self, data: list[Any], config: Any) -> list[Any]:\n"
+        f'        """Process batch: {in_type} -> {out_type}."""\n'
+        f"{val_call_block}"
+        "        log_stage(self.name, len(data))\n"
+        "        results = []\n"
+        "        for record in data:\n"
+        f"            results.append(self._{func}_one(record, config))\n"
+        "        return results\n"
+        "\n"
+        f"    def _{func}_one(self, record: {in_type}, config: Any) -> {out_type}:\n"
+        '        """Process a single record."""\n'
+        f"        return {out_type}(id=record.id, data=record.data)\n"
+        "\n"
+        "\n"
+        f"def {func}(data: list[{in_type}], config: Any) -> list[{out_type}]:\n"
+        f'    """Functional interface for {stage_name}."""\n'
+        f'    stage = {stage_name.title().replace("_", "")}Stage()\n'
+        "    return stage.process(data, config)\n"
+    )
 
 
 def _gen_adapter(spec: ModuleSpec) -> str:
     """Generate an adapter module."""
     wrapped_func = spec.generation_hints.get("wrapped_function", "process")
     stage_name = spec.generation_hints.get("stage_name", "stage")
+    wrapped_stage = spec.generation_hints.get("wrapped_stage", "")
+    # Compute relative import for the wrapped stage: e.g. "pkg/stages/mod_a.py" -> "..stages.mod_a"
+    wrapped_module = wrapped_stage.replace(".py", "").split("/")[-1] if wrapped_stage else "mod_a"
+    stage_cls = stage_name.title().replace("_", "") + "Stage"
 
     return textwrap.dedent(f'''\
-        """Adapter providing external interface for {stage_name} stage."""
+        """Adapter providing external interface for {stage_name} stage.
+
+        Delegates to the {stage_name} stage implementation, providing
+        a stable interface for external consumers.
+        """
 
         from typing import Any
 
         from ..base import StageBase
+        from ..models import BaseModel
+        from ..stages.{wrapped_module} import {stage_cls}
 
 
         class {stage_name.title().replace("_", "")}Adapter:
@@ -462,8 +501,8 @@ def _gen_adapter(spec: ModuleSpec) -> str:
             the stage's internal implementation.
             """
 
-            def __init__(self, stage: StageBase) -> None:
-                self._stage = stage
+            def __init__(self, stage: StageBase | None = None) -> None:
+                self._stage = stage or {stage_cls}()
 
             def adapt_{wrapped_func}(self, data: list[Any], config: Any) -> list[Any]:
                 """Adapt {wrapped_func} for external use."""
@@ -572,6 +611,8 @@ def _gen_utils(spec: ModuleSpec) -> str:
             import time
             from typing import Any, Callable
 
+            from ..config import PipelineConfig
+
 
             def setup_logging(level: str = "INFO") -> None:
                 """Configure pipeline-wide logging."""
@@ -608,6 +649,8 @@ def _gen_utils(spec: ModuleSpec) -> str:
 
             import json
             from typing import Any
+
+            from ..models import BaseModel
 
 
             def format_json(records: list[Any]) -> str:
@@ -656,6 +699,8 @@ def _gen_distractor(spec: ModuleSpec) -> str:
             The new pipeline uses a stage-based architecture with
             registry-driven stage resolution (see runner.py and registry.py).
             """
+
+            from ..models import *  # noqa: F401,F403
 
             # NOTE: This entire module is dead code.
             # It was the original implementation before the refactor to
@@ -742,45 +787,97 @@ def _gen_runner(spec: ModuleSpec, blueprint: PatternBlueprint) -> str:
         m.role == "registry" for m in blueprint.modules.values()
     )
     if has_registry:
-        return textwrap.dedent('''\
-            """Pipeline runner: loads config, resolves stages, executes pipeline."""
+        # Build dynamic import lines for middleware, hooks, serializers
+        extra_imports = []
+        for m in blueprint.modules.values():
+            if m.role == "middleware":
+                mod_name = m.filepath.replace(".py", "").split("/")[-1]
+                export = m.exports[0] if m.exports else mod_name
+                extra_imports.append(
+                    f"from .middleware.{mod_name} import {export}"
+                )
+            elif m.role == "hook" and spec.generation_hints.get("has_hooks"):
+                mod_name = m.filepath.replace(".py", "").split("/")[-1]
+                export = m.exports[0] if m.exports else mod_name
+                extra_imports.append(
+                    f"from .hooks.{mod_name} import {export}"
+                )
+            elif m.role == "serializer" and m.filepath in spec.imports_from:
+                mod_name = m.filepath.replace(".py", "").split("/")[-1]
+                export = m.exports[0] if m.exports else mod_name
+                extra_imports.append(
+                    f"from .serializers.{mod_name} import {export}"
+                )
+        extra_block = "\n".join(extra_imports)
+        if extra_block:
+            extra_block = "\n" + extra_block
 
-            import json
-            import logging
-            from pathlib import Path
-            from typing import Any
-
-            from .config import PipelineConfig
-            from .registry import get_registry
-            from .models import *  # noqa: F401,F403
-            from .base import StageBase
-
-            logger = logging.getLogger(__name__)
-
-
-            def run_pipeline(config: PipelineConfig | None = None) -> list[Any]:
-                """Execute the full pipeline.
-
-                Loads stages from the registry in config-specified order,
-                applies middleware, and chains data through each stage.
-                """
-                if config is None:
-                    config = PipelineConfig()
-
-                registry = get_registry()
-                registry.discover(__package__ or "", config.stage_order)
-
-                data: list[Any] = []
-                for stage_name in config.stage_order:
-                    stage_cls = registry.get(stage_name)
-                    stage = stage_cls()
-                    data = stage.process(data, config)
-                    logger.info(
-                        "Stage %s: %d records", stage_name, len(data),
-                    )
-
-                return data
-        ''')
+        return (
+            '"""Pipeline runner: loads config, resolves stages, executes pipeline.\n'
+            "\n"
+            "Stage ordering is driven by pipeline_config.json — the runner reads\n"
+            "the config file, extracts the stage list, and resolves each stage\n"
+            "through the registry via importlib.\n"
+            '"""\n'
+            "\n"
+            "import json\n"
+            "import logging\n"
+            "from pathlib import Path\n"
+            "from typing import Any\n"
+            "\n"
+            "from .config import PipelineConfig\n"
+            "from .registry import get_registry\n"
+            "from .models import *  # noqa: F401,F403\n"
+            "from .base import StageBase\n"
+            f"{extra_block}\n"
+            "\n"
+            "logger = logging.getLogger(__name__)\n"
+            "\n"
+            "# Path to the pipeline configuration file\n"
+            "_CONFIG_PATH = Path(__file__).parent / \"pipeline_config.json\"\n"
+            "\n"
+            "\n"
+            "def _load_stage_order() -> list[str]:\n"
+            '    """Load stage ordering from pipeline_config.json.\n'
+            "\n"
+            "    The config file lists stage modules in execution order.\n"
+            "    Each entry has a 'module' name (e.g. 'mod_a') and 'enabled' flag.\n"
+            '    """\n'
+            "    with open(_CONFIG_PATH) as f:\n"
+            "        raw = json.load(f)\n"
+            "    return [\n"
+            '        s["module"] for s in raw["pipeline"]["stages"]\n'
+            '        if s.get("enabled", True)\n'
+            "    ]\n"
+            "\n"
+            "\n"
+            "def run_pipeline(config: PipelineConfig | None = None) -> list[Any]:\n"
+            '    """Execute the full pipeline.\n'
+            "\n"
+            "    Loads stage ordering from pipeline_config.json, resolves each\n"
+            "    stage through the registry, applies middleware, and chains data.\n"
+            '    """\n'
+            "    if config is None:\n"
+            "        config = PipelineConfig()\n"
+            "\n"
+            "    # Load stage ordering from config file\n"
+            "    if not config.stage_order:\n"
+            "        config.stage_order = _load_stage_order()\n"
+            "\n"
+            "    registry = get_registry()\n"
+            '    registry.discover(__package__ or "", config.stage_order)\n'
+            "\n"
+            "    data: list[Any] = []\n"
+            "    for stage_name in config.stage_order:\n"
+            "        stage_cls = registry.get(stage_name)\n"
+            "        stage = stage_cls()\n"
+            "        data = stage.process(data, config)\n"
+            "        logger.info(\n"
+            '            "Stage %s: %d records", stage_name, len(data),\n'
+            "        )\n"
+            "\n"
+            "    return data\n"
+        )
     else:
         # Small blueprint: direct imports
         return textwrap.dedent('''\
@@ -797,36 +894,44 @@ def _gen_runner(spec: ModuleSpec, blueprint: PatternBlueprint) -> str:
 
 def _gen_cli(spec: ModuleSpec) -> str:
     """Generate cli.py entry point."""
-    return textwrap.dedent('''\
-        """CLI entry point for the pipeline."""
+    uses_factory = spec.generation_hints.get("uses_factory") == "true"
+    if uses_factory:
+        run_import = "from .pipeline_factory import create_pipeline"
+        run_call = "results = create_pipeline(config)"
+    else:
+        run_import = "from .runner import run_pipeline"
+        run_call = "results = run_pipeline(config)"
 
-        import argparse
-        import sys
-
-        from .config import PipelineConfig
-        from .runner import run_pipeline
-
-
-        def main(argv: list[str] | None = None) -> None:
-            """Parse arguments and run the pipeline."""
-            parser = argparse.ArgumentParser(description="Run the data pipeline")
-            parser.add_argument("--input", type=str, default="data/input")
-            parser.add_argument("--output", type=str, default="data/output")
-            parser.add_argument("--batch-size", type=int, default=100)
-            args = parser.parse_args(argv)
-
-            config = PipelineConfig(
-                input_path=args.input,
-                output_path=args.output,
-                batch_size=args.batch_size,
-            )
-            results = run_pipeline(config)
-            print(f"Pipeline complete: {len(results)} records processed")
-
-
-        if __name__ == "__main__":
-            main()
-    ''')
+    return (
+        '"""CLI entry point for the pipeline."""\n'
+        "\n"
+        "import argparse\n"
+        "import sys\n"
+        "\n"
+        "from .config import PipelineConfig\n"
+        f"{run_import}\n"
+        "\n"
+        "\n"
+        "def main(argv: list[str] | None = None) -> None:\n"
+        '    """Parse arguments and run the pipeline."""\n'
+        '    parser = argparse.ArgumentParser(description="Run the data pipeline")\n'
+        '    parser.add_argument("--input", type=str, default="data/input")\n'
+        '    parser.add_argument("--output", type=str, default="data/output")\n'
+        '    parser.add_argument("--batch-size", type=int, default=100)\n'
+        "    args = parser.parse_args(argv)\n"
+        "\n"
+        "    config = PipelineConfig(\n"
+        "        input_path=args.input,\n"
+        "        output_path=args.output,\n"
+        "        batch_size=args.batch_size,\n"
+        "    )\n"
+        f"    {run_call}\n"
+        '    print(f"Pipeline complete: {len(results)} records processed")\n'
+        "\n"
+        "\n"
+        'if __name__ == "__main__":\n'
+        "    main()\n"
+    )
 
 
 def _gen_types(spec: ModuleSpec) -> str:
@@ -874,72 +979,57 @@ def _gen_validator(spec: ModuleSpec) -> str:
     vtype = spec.generation_hints.get("validator_type", "schema")
 
     descriptions = {
-        "schema": (
-            "Schema validation",
-            "Validates that input records conform to the expected schema.\n"
-            "    Checks required fields, types, and structure.",
-        ),
-        "integrity": (
-            "Referential integrity validation",
-            "Validates referential integrity between records.\n"
-            "    Checks that foreign key references are valid.",
-        ),
-        "range": (
-            "Value range validation",
-            "Validates that numeric and date fields fall within expected ranges.\n"
-            "    Flags outliers and impossible values.",
-        ),
-        "business_rule": (
-            "Business rule validation",
-            "Validates domain-specific business rules.\n"
-            "    Checks constraints that depend on multiple fields.",
-        ),
+        "schema": ("Schema validation", "Validates that input records conform to the expected schema."),
+        "integrity": ("Referential integrity validation", "Validates referential integrity between records."),
+        "range": ("Value range validation", "Validates that numeric and date fields fall within expected ranges."),
+        "business_rule": ("Business rule validation", "Validates domain-specific business rules."),
     }
     title, docstring = descriptions.get(vtype, ("Validation", "Generic validation."))
+    cls_name = vtype.title().replace("_", "") + "Validator"
 
-    return textwrap.dedent(f'''\
-        """{title} for pipeline input data."""
-
-        from typing import Any
-
-        from ..exceptions import ValidationError
-        from ..models import BaseModel
-        from ..types import ValidatorProtocol
-
-
-        class {vtype.title().replace("_", "")}Validator:
-            """{docstring}"""
-
-            def validate(self, data: list[Any], config: Any) -> bool:
-                """Validate a batch of records.
-
-                Args:
-                    data: Input records to validate.
-                    config: PipelineConfig instance.
-
-                Returns:
-                    True if all records pass validation.
-
-                Raises:
-                    ValidationError: If validation fails.
-                """
-                for record in data:
-                    if not self._check_one(record):
-                        raise ValidationError(
-                            field="{vtype}",
-                            message=f"Record {{getattr(record, 'id', '?')}} failed {vtype} validation",
-                        )
-                return True
-
-            def _check_one(self, record: Any) -> bool:
-                """Check a single record."""
-                return hasattr(record, "id") and hasattr(record, "data")
-
-
-        def validate_{vtype}(data: list[Any], config: Any) -> bool:
-            """Functional interface for {vtype} validation."""
-            return {vtype.title().replace("_", "")}Validator().validate(data, config)
-    ''')
+    return (
+        f'"""{title} for pipeline input data."""\n'
+        "\n"
+        "from typing import Any\n"
+        "\n"
+        "from ..exceptions import ValidationError\n"
+        "from ..models import BaseModel\n"
+        "from ..types import ValidatorProtocol\n"
+        "\n"
+        "\n"
+        f"class {cls_name}:\n"
+        f'    """{docstring}"""\n'
+        "\n"
+        "    def validate(self, data: list[Any], config: Any) -> bool:\n"
+        '        """Validate a batch of records.\n'
+        "\n"
+        "        Args:\n"
+        "            data: Input records to validate.\n"
+        "            config: PipelineConfig instance.\n"
+        "\n"
+        "        Returns:\n"
+        "            True if all records pass validation.\n"
+        "\n"
+        "        Raises:\n"
+        "            ValidationError: If validation fails.\n"
+        '        """\n'
+        "        for record in data:\n"
+        "            if not self._check_one(record):\n"
+        "                raise ValidationError(\n"
+        f'                    field="{vtype}",\n'
+        f'                    message=f"Record {{getattr(record, \'id\', \'?\')}} failed {vtype} validation",\n'
+        "                )\n"
+        "        return True\n"
+        "\n"
+        "    def _check_one(self, record: Any) -> bool:\n"
+        '        """Check a single record."""\n'
+        '        return hasattr(record, "id") and hasattr(record, "data")\n'
+        "\n"
+        "\n"
+        f"def validate_{vtype}(data: list[Any], config: Any) -> bool:\n"
+        f'    """Functional interface for {vtype} validation."""\n'
+        f"    return {cls_name}().validate(data, config)\n"
+    )
 
 
 def _gen_hook(spec: ModuleSpec) -> str:
@@ -947,49 +1037,37 @@ def _gen_hook(spec: ModuleSpec) -> str:
     htype = spec.generation_hints.get("hook_type", "pre_pipeline")
 
     descriptions = {
-        "pre_pipeline": (
-            "Pre-pipeline lifecycle hook",
-            "Executed before pipeline processing begins.\n"
-            "    Sets up logging, validates configuration, initializes resources.",
-        ),
-        "post_pipeline": (
-            "Post-pipeline lifecycle hook",
-            "Executed after pipeline processing completes.\n"
-            "    Writes summary metrics, closes resources, sends notifications.",
-        ),
-        "on_error": (
-            "Error handling lifecycle hook",
-            "Executed when pipeline processing encounters an error.\n"
-            "    Logs error details, attempts cleanup, sends alerts.",
-        ),
+        "pre_pipeline": ("Pre-pipeline lifecycle hook", "Executed before pipeline processing begins."),
+        "post_pipeline": ("Post-pipeline lifecycle hook", "Executed after pipeline processing completes."),
+        "on_error": ("Error handling lifecycle hook", "Executed when pipeline processing encounters an error."),
     }
     title, docstring = descriptions.get(htype, ("Lifecycle hook", "Generic hook."))
 
-    return textwrap.dedent(f'''\
-        """{title} — executed by the pipeline runner."""
-
-        import logging
-        from typing import Any
-
-        from ..config import PipelineConfig
-        from ..models import BaseModel
-
-        logger = logging.getLogger(__name__)
-
-
-        def {htype}_hook(context: dict[str, Any]) -> None:
-            """{docstring}"""
-            config = context.get("config")
-            logger.info("{htype} hook executing")
-
-            if config and hasattr(config, "log_level"):
-                logger.debug("Pipeline config: log_level=%s", config.log_level)
-
-
-        def execute(context: dict[str, Any]) -> None:
-            """Uniform hook interface — delegates to {htype}_hook."""
-            {htype}_hook(context)
-    ''')
+    return (
+        f'"""{title} — executed by the pipeline runner."""\n'
+        "\n"
+        "import logging\n"
+        "from typing import Any\n"
+        "\n"
+        "from ..config import PipelineConfig\n"
+        "from ..models import BaseModel\n"
+        "\n"
+        "logger = logging.getLogger(__name__)\n"
+        "\n"
+        "\n"
+        f"def {htype}_hook(context: dict[str, Any]) -> None:\n"
+        f'    """{docstring}"""\n'
+        '    config = context.get("config")\n'
+        f'    logger.info("{htype} hook executing")\n'
+        "\n"
+        '    if config and hasattr(config, "log_level"):\n'
+        '        logger.debug("Pipeline config: log_level=%s", config.log_level)\n'
+        "\n"
+        "\n"
+        "def execute(context: dict[str, Any]) -> None:\n"
+        f'    """Uniform hook interface — delegates to {htype}_hook."""\n'
+        f"    {htype}_hook(context)\n"
+    )
 
 
 def _gen_serializer(spec: ModuleSpec) -> str:
@@ -1080,54 +1158,78 @@ def _gen_serializer(spec: ModuleSpec) -> str:
         ''')
 
 
-def _gen_factory(spec: ModuleSpec) -> str:
-    """Generate pipeline_factory.py."""
-    return textwrap.dedent('''\
-        """Pipeline factory: constructs configured pipeline instances."""
+def _gen_factory(spec: ModuleSpec, blueprint: PatternBlueprint | None = None) -> str:
+    """Generate pipeline_factory.py with dynamic imports."""
+    extra_imports = []
+    mw_names = []
+    hook_names = []
+    if blueprint:
+        for m in blueprint.modules.values():
+            if m.role == "middleware":
+                mod_name = m.filepath.replace(".py", "").split("/")[-1]
+                export = m.exports[0] if m.exports else mod_name
+                extra_imports.append(f"from .middleware.{mod_name} import {export}")
+                mw_names.append(export)
+            elif m.role == "hook":
+                mod_name = m.filepath.replace(".py", "").split("/")[-1]
+                export = m.exports[0] if m.exports else mod_name
+                extra_imports.append(f"from .hooks.{mod_name} import {export}")
+                hook_names.append(export)
 
-        from typing import Any
+    import_block = "\n".join(extra_imports)
+    if import_block:
+        import_block = "\n" + import_block
 
-        from .config import PipelineConfig
-        from .registry import get_registry
-        from .runner import run_pipeline
+    mw_list = ", ".join(mw_names) if mw_names else ""
+    hook_list = ", ".join(hook_names) if hook_names else ""
 
-
-        class PipelineBuilder:
-            """Builder pattern for constructing configured pipelines.
-
-            Wires together registry, middleware, hooks, and configuration
-            into a ready-to-run pipeline instance.
-            """
-
-            def __init__(self, config: PipelineConfig | None = None) -> None:
-                self._config = config or PipelineConfig()
-                self._middleware: list[Any] = []
-                self._hooks: list[Any] = []
-
-            def with_middleware(self, middleware_fn: Any) -> "PipelineBuilder":
-                """Add a middleware function to the pipeline."""
-                self._middleware.append(middleware_fn)
-                return self
-
-            def with_hook(self, hook_fn: Any) -> "PipelineBuilder":
-                """Add a lifecycle hook to the pipeline."""
-                self._hooks.append(hook_fn)
-                return self
-
-            def build(self) -> Any:
-                """Build and return the configured pipeline runner."""
-                return {
-                    "config": self._config,
-                    "middleware": self._middleware,
-                    "hooks": self._hooks,
-                    "registry": get_registry(),
-                }
-
-
-        def create_pipeline(config: PipelineConfig | None = None) -> list[Any]:
-            """Create and execute a pipeline with default configuration."""
-            return run_pipeline(config)
-    ''')
+    return (
+        '"""Pipeline factory: constructs configured pipeline instances."""\n'
+        "\n"
+        "from typing import Any\n"
+        "\n"
+        "from .config import PipelineConfig\n"
+        "from .registry import get_registry\n"
+        "from .runner import run_pipeline\n"
+        f"{import_block}\n"
+        "\n"
+        "\n"
+        "class PipelineBuilder:\n"
+        '    """Builder pattern for constructing configured pipelines.\n'
+        "\n"
+        "    Wires together registry, middleware, hooks, and configuration\n"
+        "    into a ready-to-run pipeline instance.\n"
+        '    """\n'
+        "\n"
+        "    def __init__(self, config: PipelineConfig | None = None) -> None:\n"
+        "        self._config = config or PipelineConfig()\n"
+        f"        self._middleware: list[Any] = [{mw_list}]\n"
+        f"        self._hooks: list[Any] = [{hook_list}]\n"
+        "\n"
+        '    def with_middleware(self, middleware_fn: Any) -> "PipelineBuilder":\n'
+        '        """Add a middleware function to the pipeline."""\n'
+        "        self._middleware.append(middleware_fn)\n"
+        "        return self\n"
+        "\n"
+        '    def with_hook(self, hook_fn: Any) -> "PipelineBuilder":\n'
+        '        """Add a lifecycle hook to the pipeline."""\n'
+        "        self._hooks.append(hook_fn)\n"
+        "        return self\n"
+        "\n"
+        "    def build(self) -> dict[str, Any]:\n"
+        '        """Build and return the configured pipeline runner."""\n'
+        "        return {\n"
+        '            "config": self._config,\n'
+        '            "middleware": self._middleware,\n'
+        '            "hooks": self._hooks,\n'
+        '            "registry": get_registry(),\n'
+        "        }\n"
+        "\n"
+        "\n"
+        "def create_pipeline(config: PipelineConfig | None = None) -> list[Any]:\n"
+        '    """Create and execute a pipeline with default configuration."""\n'
+        "    return run_pipeline(config)\n"
+    )
 
 
 def _gen_source_module(spec: ModuleSpec) -> str:

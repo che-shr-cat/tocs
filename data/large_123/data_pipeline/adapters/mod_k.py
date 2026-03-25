@@ -1,8 +1,14 @@
-"""Adapter providing external interface for stage_deduplicate stage."""
+"""Adapter providing external interface for stage_deduplicate stage.
+
+Delegates to the stage_deduplicate stage implementation, providing
+a stable interface for external consumers.
+"""
 
 from typing import Any
 
 from ..base import StageBase
+from ..models import BaseModel
+from ..stages.mod_d import StageDeduplicateStage
 
 
 class StageDeduplicateAdapter:
@@ -12,8 +18,8 @@ class StageDeduplicateAdapter:
     the stage's internal implementation.
     """
 
-    def __init__(self, stage: StageBase) -> None:
-        self._stage = stage
+    def __init__(self, stage: StageBase | None = None) -> None:
+        self._stage = stage or StageDeduplicateStage()
 
     def adapt_deduplicate_records(self, data: list[Any], config: Any) -> list[Any]:
         """Adapt deduplicate_records for external use."""

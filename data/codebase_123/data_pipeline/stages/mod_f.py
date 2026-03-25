@@ -8,6 +8,7 @@ from ..models import TransformedRecord, AggregatedRecord
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageAggregateStage(StageBase):
     """Pipeline stage: groups records by key dimensions and computes summary statistics"""
 

@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import NormalizedDocument, FilteredDocument
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_p import validate_integrity
+
 
 class StageStopwordsStage(StageBase):
     """Pipeline stage: removes stopwords and high-frequency noise tokens"""
@@ -16,6 +18,7 @@ class StageStopwordsStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: NormalizedDocument -> FilteredDocument."""
+        validate_integrity(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

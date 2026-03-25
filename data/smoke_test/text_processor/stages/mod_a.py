@@ -8,6 +8,7 @@ from ..models import RawDocument, TokenizedDocument
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageTokenizeStage(StageBase):
     """Pipeline stage: splits text into sentences and tokens with position offsets"""
 

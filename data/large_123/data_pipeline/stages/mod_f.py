@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import EnrichedRecord, TransformedRecord
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_r import validate_range
+
 
 class StageTransformStage(StageBase):
     """Pipeline stage: derives computed fields, converts types, applies business logic"""
@@ -16,6 +18,7 @@ class StageTransformStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: EnrichedRecord -> TransformedRecord."""
+        validate_range(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

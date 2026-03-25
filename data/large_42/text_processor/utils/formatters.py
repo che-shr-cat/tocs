@@ -3,6 +3,8 @@
 import json
 from typing import Any
 
+from ..models import BaseModel
+
 
 def format_json(records: list[Any]) -> str:
     """Format records as JSON lines."""

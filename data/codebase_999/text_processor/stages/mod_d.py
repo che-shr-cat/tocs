@@ -8,6 +8,7 @@ from ..models import VectorizedDocument, ClassifiedDocument
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageClassifyStage(StageBase):
     """Pipeline stage: assigns topic and category labels using trained classifier"""
 

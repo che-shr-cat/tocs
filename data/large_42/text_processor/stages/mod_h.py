@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import SummarizedDocument, IndexedDocument
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_q import validate_range
+
 
 class StageIndexStage(StageBase):
     """Pipeline stage: builds inverted index entries for search and retrieval"""
@@ -16,6 +18,7 @@ class StageIndexStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: SummarizedDocument -> IndexedDocument."""
+        validate_range(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

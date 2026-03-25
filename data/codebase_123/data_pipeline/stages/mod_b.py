@@ -8,6 +8,7 @@ from ..models import IngestedRecord, ValidatedRecord
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageValidateStage(StageBase):
     """Pipeline stage: validates required fields, checks types, drops malformed rows"""
 

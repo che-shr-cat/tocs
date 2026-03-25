@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import TransformedRecord, AggregatedRecord
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_r import validate_range
+
 
 class StageAggregateStage(StageBase):
     """Pipeline stage: groups records by key dimensions and computes summary statistics"""
@@ -16,6 +18,7 @@ class StageAggregateStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: TransformedRecord -> AggregatedRecord."""
+        validate_range(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

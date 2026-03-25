@@ -1,8 +1,14 @@
-"""Adapter providing external interface for stage_validate stage."""
+"""Adapter providing external interface for stage_validate stage.
+
+Delegates to the stage_validate stage implementation, providing
+a stable interface for external consumers.
+"""
 
 from typing import Any
 
 from ..base import StageBase
+from ..models import BaseModel
+from ..stages.mod_b import StageValidateStage
 
 
 class StageValidateAdapter:
@@ -12,8 +18,8 @@ class StageValidateAdapter:
     the stage's internal implementation.
     """
 
-    def __init__(self, stage: StageBase) -> None:
-        self._stage = stage
+    def __init__(self, stage: StageBase | None = None) -> None:
+        self._stage = stage or StageValidateStage()
 
     def adapt_validate_records(self, data: list[Any], config: Any) -> list[Any]:
         """Adapt validate_records for external use."""

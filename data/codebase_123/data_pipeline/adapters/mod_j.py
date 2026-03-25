@@ -1,8 +1,14 @@
-"""Adapter providing external interface for stage_export stage."""
+"""Adapter providing external interface for stage_export stage.
+
+Delegates to the stage_export stage implementation, providing
+a stable interface for external consumers.
+"""
 
 from typing import Any
 
 from ..base import StageBase
+from ..models import BaseModel
+from ..stages.mod_g import StageExportStage
 
 
 class StageExportAdapter:
@@ -12,8 +18,8 @@ class StageExportAdapter:
     the stage's internal implementation.
     """
 
-    def __init__(self, stage: StageBase) -> None:
-        self._stage = stage
+    def __init__(self, stage: StageBase | None = None) -> None:
+        self._stage = stage or StageExportStage()
 
     def adapt_export_records(self, data: list[Any], config: Any) -> list[Any]:
         """Adapt export_records for external use."""

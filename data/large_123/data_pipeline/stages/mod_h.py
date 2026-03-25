@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import AggregatedRecord, ExportedRecord
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_r import validate_range
+
 
 class StageExportStage(StageBase):
     """Pipeline stage: formats aggregated records for downstream consumption"""
@@ -16,6 +18,7 @@ class StageExportStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: AggregatedRecord -> ExportedRecord."""
+        validate_range(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

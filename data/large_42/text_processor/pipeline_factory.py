@@ -6,6 +6,13 @@ from .config import PipelineConfig
 from .registry import get_registry
 from .runner import run_pipeline
 
+from .middleware.mod_l import logging_middleware
+from .middleware.mod_m import retry_middleware
+from .middleware.mod_n import metrics_middleware
+from .hooks.mod_r import pre_pipeline_hook
+from .hooks.mod_s import post_pipeline_hook
+from .hooks.mod_t import on_error_hook
+
 
 class PipelineBuilder:
     """Builder pattern for constructing configured pipelines.
@@ -16,8 +23,8 @@ class PipelineBuilder:
 
     def __init__(self, config: PipelineConfig | None = None) -> None:
         self._config = config or PipelineConfig()
-        self._middleware: list[Any] = []
-        self._hooks: list[Any] = []
+        self._middleware: list[Any] = [logging_middleware, retry_middleware, metrics_middleware]
+        self._hooks: list[Any] = [pre_pipeline_hook, post_pipeline_hook, on_error_hook]
 
     def with_middleware(self, middleware_fn: Any) -> "PipelineBuilder":
         """Add a middleware function to the pipeline."""
@@ -29,7 +36,7 @@ class PipelineBuilder:
         self._hooks.append(hook_fn)
         return self
 
-    def build(self) -> Any:
+    def build(self) -> dict[str, Any]:
         """Build and return the configured pipeline runner."""
         return {
             "config": self._config,

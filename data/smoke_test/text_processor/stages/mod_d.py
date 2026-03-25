@@ -8,6 +8,7 @@ from ..models import FilteredDocument, LemmatizedDocument
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageLemmatizeStage(StageBase):
     """Pipeline stage: reduces tokens to lemma forms using morphological analysis"""
 

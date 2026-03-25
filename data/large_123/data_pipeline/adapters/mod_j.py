@@ -1,8 +1,14 @@
-"""Adapter providing external interface for stage_normalize stage."""
+"""Adapter providing external interface for stage_normalize stage.
+
+Delegates to the stage_normalize stage implementation, providing
+a stable interface for external consumers.
+"""
 
 from typing import Any
 
 from ..base import StageBase
+from ..models import BaseModel
+from ..stages.mod_c import StageNormalizeStage
 
 
 class StageNormalizeAdapter:
@@ -12,8 +18,8 @@ class StageNormalizeAdapter:
     the stage's internal implementation.
     """
 
-    def __init__(self, stage: StageBase) -> None:
-        self._stage = stage
+    def __init__(self, stage: StageBase | None = None) -> None:
+        self._stage = stage or StageNormalizeStage()
 
     def adapt_normalize_records(self, data: list[Any], config: Any) -> list[Any]:
         """Adapt normalize_records for external use."""

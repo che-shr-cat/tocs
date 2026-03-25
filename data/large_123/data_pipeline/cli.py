@@ -4,7 +4,7 @@ import argparse
 import sys
 
 from .config import PipelineConfig
-from .runner import run_pipeline
+from .pipeline_factory import create_pipeline
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> None:
         output_path=args.output,
         batch_size=args.batch_size,
     )
-    results = run_pipeline(config)
+    results = create_pipeline(config)
     print(f"Pipeline complete: {len(results)} records processed")
 
 

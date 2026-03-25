@@ -8,6 +8,7 @@ from ..models import TokenizedDocument, NormalizedDocument
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageNormalizeStage(StageBase):
     """Pipeline stage: lowercases, applies unicode normalization, strips accents"""
 

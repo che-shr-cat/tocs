@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import ValidatedRecord, NormalizedRecord
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_q import validate_integrity
+
 
 class StageNormalizeStage(StageBase):
     """Pipeline stage: standardizes formats, trims whitespace, applies canonical forms"""
@@ -16,6 +18,7 @@ class StageNormalizeStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: ValidatedRecord -> NormalizedRecord."""
+        validate_integrity(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

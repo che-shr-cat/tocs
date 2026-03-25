@@ -8,6 +8,7 @@ from ..models import SummarizedDocument, IndexedDocument
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageIndexStage(StageBase):
     """Pipeline stage: builds inverted index entries for search and retrieval"""
 

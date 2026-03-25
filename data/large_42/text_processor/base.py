@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from .models import BaseModel
+from .types import StageProtocol
 
 
 class StageBase(ABC):

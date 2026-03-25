@@ -1,4 +1,9 @@
-"""Pipeline runner: loads config, resolves stages, executes pipeline."""
+"""Pipeline runner: loads config, resolves stages, executes pipeline.
+
+Stage ordering is driven by pipeline_config.json — the runner reads
+the config file, extracts the stage list, and resolves each stage
+through the registry via importlib.
+"""
 
 import json
 import logging
@@ -10,17 +15,42 @@ from .registry import get_registry
 from .models import *  # noqa: F401,F403
 from .base import StageBase
 
+from .middleware.mod_k import logging_middleware
+from .middleware.mod_l import retry_middleware
+from .middleware.mod_m import metrics_middleware
+
 logger = logging.getLogger(__name__)
+
+# Path to the pipeline configuration file
+_CONFIG_PATH = Path(__file__).parent / "pipeline_config.json"
+
+
+def _load_stage_order() -> list[str]:
+    """Load stage ordering from pipeline_config.json.
+
+    The config file lists stage modules in execution order.
+    Each entry has a 'module' name (e.g. 'mod_a') and 'enabled' flag.
+    """
+    with open(_CONFIG_PATH) as f:
+        raw = json.load(f)
+    return [
+        s["module"] for s in raw["pipeline"]["stages"]
+        if s.get("enabled", True)
+    ]
 
 
 def run_pipeline(config: PipelineConfig | None = None) -> list[Any]:
     """Execute the full pipeline.
 
-    Loads stages from the registry in config-specified order,
-    applies middleware, and chains data through each stage.
+    Loads stage ordering from pipeline_config.json, resolves each
+    stage through the registry, applies middleware, and chains data.
     """
     if config is None:
         config = PipelineConfig()
+
+    # Load stage ordering from config file
+    if not config.stage_order:
+        config.stage_order = _load_stage_order()
 
     registry = get_registry()
     registry.discover(__package__ or "", config.stage_order)

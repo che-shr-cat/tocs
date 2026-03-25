@@ -8,6 +8,7 @@ from ..models import ClassifiedDocument, SummarizedDocument
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageSummarizeStage(StageBase):
     """Pipeline stage: generates extractive summaries from classified documents"""
 

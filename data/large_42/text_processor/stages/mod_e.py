@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import LemmatizedDocument, VectorizedDocument
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_q import validate_range
+
 
 class StageVectorizeStage(StageBase):
     """Pipeline stage: converts token sequences to tf-idf or embedding vectors"""
@@ -16,6 +18,7 @@ class StageVectorizeStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: LemmatizedDocument -> VectorizedDocument."""
+        validate_range(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

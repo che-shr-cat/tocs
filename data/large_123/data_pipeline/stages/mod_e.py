@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import DeduplicatedRecord, EnrichedRecord
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_r import validate_range
+
 
 class StageEnrichStage(StageBase):
     """Pipeline stage: joins external lookup data (e.g., geo-ip, currency rates)"""
@@ -16,6 +18,7 @@ class StageEnrichStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: DeduplicatedRecord -> EnrichedRecord."""
+        validate_range(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

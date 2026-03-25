@@ -28,10 +28,10 @@ def test_no_inter_stage_imports():
 
 def test_stages_inherit_base():
     """All stages must inherit from StageBase (interface invariant)."""
-    # This test verifies the interface invariant is maintained
     stages_dir = Path(__file__).parent / "stages"
     for sf in sorted(stages_dir.glob("mod_*.py")):
         source = sf.read_text()
         assert "StageBase" in source, (
             f"{sf.name} does not reference StageBase"
         )
+

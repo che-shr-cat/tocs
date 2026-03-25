@@ -7,6 +7,8 @@ from ..exceptions import StageError, ValidationError
 from ..models import NormalizedRecord, DeduplicatedRecord
 from ..utils.helpers import log_stage, timed
 
+from ..validators.mod_q import validate_integrity
+
 
 class StageDeduplicateStage(StageBase):
     """Pipeline stage: removes exact and fuzzy duplicate records by key fields"""
@@ -16,6 +18,7 @@ class StageDeduplicateStage(StageBase):
     @timed
     def process(self, data: list[Any], config: Any) -> list[Any]:
         """Process batch: NormalizedRecord -> DeduplicatedRecord."""
+        validate_integrity(data, config)
         log_stage(self.name, len(data))
         results = []
         for record in data:

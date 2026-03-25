@@ -8,6 +8,7 @@ from ..models import AggregatedRecord, ExportedRecord
 from ..utils.helpers import log_stage, timed
 
 
+
 class StageExportStage(StageBase):
     """Pipeline stage: formats aggregated records for downstream consumption"""
 
